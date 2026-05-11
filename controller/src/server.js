@@ -72,7 +72,8 @@ app.get('/now-playing', async (req, res) => {
       queue.getNowPlaying(),
       getFullContext(),
     ]);
-    res.json({ nowPlaying, context: ctx });
+    const s = settings.get();
+    res.json({ nowPlaying, context: ctx, dj: { name: s.dj?.name } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -245,6 +246,10 @@ app.get('/settings', async (req, res) => {
         jingleRatio: s.jingleRatio,
         crossfadeDuration: s.crossfadeDuration,
         weather: s.weather,
+        dj: s.dj,
+      },
+      defaults: {
+        dj: settings.getDefaults().dj,
       },
     });
   } catch (err) {

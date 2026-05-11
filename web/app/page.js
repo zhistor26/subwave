@@ -30,6 +30,7 @@ export default function ListenerPage() {
   const [volume, setVolume] = useState(0.8);
   const [nowPlaying, setNowPlaying] = useState(null);
   const [context, setContext] = useState(null);
+  const [dj, setDj] = useState(null);
   const [state, setState] = useState({ upcoming: [], history: [], djLog: [] });
   const [requestText, setRequestText] = useState('');
   const [requesterName, setRequesterName] = useState('');
@@ -55,6 +56,7 @@ export default function ListenerPage() {
           return npRes.nowPlaying;
         });
         setContext(npRes.context);
+        if (npRes.dj) setDj(npRes.dj);
         setState(stRes);
       } catch {}
     };
@@ -128,6 +130,7 @@ export default function ListenerPage() {
         tunedIn={tunedIn}
         context={context}
         transmission={state.djLog?.length || 241}
+        djName={dj?.name}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 

@@ -13,6 +13,29 @@ import * as library from './library.js';
 import { getFullContext } from './context.js';
 import { queue } from './queue.js';
 import { cleanupOldVoices } from './piper.js';
+import * as settings from './settings.js';
+
+// Gate scheduled DJ events on the current talk frequency. Crons are scheduled
+// at the most aggressive cadence; this decides whether a given tick fires.
+function shouldFire(kind, now = new Date()) {
+  const f = settings.get().dj?.frequency || 'moderate';
+  const m = now.getMinutes();
+  if (kind === 'stationId') {
+    if (f === 'quiet')    return m === 45;
+    if (f === 'moderate') return m === 15 || m === 45;
+    return [0, 15, 30, 45].includes(m);
+  }
+  if (kind === 'hourly') {
+    if (f === 'quiet') return now.getHours() % 2 === 0;
+    return true;
+  }
+  if (kind === 'weather') {
+    if (f === 'quiet')    return m === 0;
+    if (f === 'moderate') return m === 0 || m === 30;
+    return true;
+  }
+  return true;
+}
 
 const TARGET_POOL = 30;
 const MOOD_WEIGHT = 15;       // up to this many mood-tagged tracks per pool
@@ -92,6 +115,7 @@ async function refreshAutoPlaylist() {
 // ---------------------------------------------------------------------------
 
 async function hourlyCheck() {
+  if (!shouldFire('hourly')) return;
   const ctx = await getFullContext();
   try {
     const script = await ollama.generateHourlyTime(ctx.time, ctx.weather);
@@ -109,6 +133,7 @@ async function hourlyCheck() {
 let lastWeatherCondition = null;
 
 async function maybeWeatherUpdate() {
+  if (!shouldFire('weather')) return;
   const ctx = await getFullContext();
   if (!ctx.weather.condition || ctx.weather.condition === 'unknown') return;
   if (ctx.weather.condition === lastWeatherCondition) return;
@@ -128,6 +153,7 @@ async function maybeWeatherUpdate() {
 // ---------------------------------------------------------------------------
 
 async function stationId() {
+  if (!shouldFire('stationId')) return;
   try {
     const script = await ollama.generateStationId();
     await queue.announce(script, 'station-id');
@@ -162,11 +188,11 @@ export function startScheduler() {
   // Top of every hour
   cron.schedule('0 * * * *', hourlyCheck);
 
-  // Weather check every 30 minutes
-  cron.schedule('*/30 * * * *', maybeWeatherUpdate);
+  // Weather check every 15 minutes — handler gates further on frequency
+  cron.schedule('*/15 * * * *', maybeWeatherUpdate);
 
-  // Station ID at :15 and :45
-  cron.schedule('15,45 * * * *', stationId);
+  // Station ID candidate ticks at :00, :15, :30, :45 — handler gates by frequency
+  cron.schedule('0,15,30,45 * * * *', stationId);
 
   // Cleanup every hour
   cron.schedule('0 * * * *', cleanup);

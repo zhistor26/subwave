@@ -9,10 +9,17 @@ import * as ollama from './ollama.js';
 import { speak } from './piper.js';
 import { pickAndEnqueue } from './picker.js';
 import { getFullContext } from './context.js';
+import * as settings from './settings.js';
 
-// Random gap between DJ links on auto-played tracks.
-// 85% of the time we land in 1-9, 15% we go quiet for 10-15 tracks.
+// Random gap between DJ links on auto-played tracks. The frequency setting
+// scales how chatty the DJ is:
+//   quiet      → uniform 8-20 tracks between links
+//   moderate   → current behaviour (1-9 85% of the time, 10-15 the other 15%)
+//   aggressive → uniform 1-3 tracks
 function pickLinkInterval() {
+  const f = settings.get().dj?.frequency || 'moderate';
+  if (f === 'quiet')      return 8 + Math.floor(Math.random() * 13);
+  if (f === 'aggressive') return 1 + Math.floor(Math.random() * 3);
   if (Math.random() < 0.15) return 10 + Math.floor(Math.random() * 6);
   return 1 + Math.floor(Math.random() * 9);
 }

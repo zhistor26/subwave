@@ -1,6 +1,7 @@
 // Durable settings — overrides for values that have static defaults in code.
-// Stored at /var/sub-wave/settings.json. Some apply live (weather location);
-// others require a Liquidsoap restart (jingle frequency, crossfade duration).
+// Stored at /var/sub-wave/settings.json. Some apply live (weather location,
+// DJ persona); others require a Liquidsoap restart (jingle frequency,
+// crossfade duration).
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -8,10 +9,30 @@ import { existsSync } from 'node:fs';
 const SETTINGS_PATH = '/var/sub-wave/settings.json';
 const LIQ_SETTINGS_PATH = '/var/sub-wave/liquidsoap_settings.json';
 
+// Default DJ system-prompt template. Placeholders are substituted at LLM
+// call time via renderDjPrompt(). Keep {name} mandatory — update() refuses
+// any custom template that drops it, so dialogue can never become anonymous.
+export const DEFAULT_DJ_PROMPT_TEMPLATE = `You are {name}, the on-air DJ for {station}, a personal radio station broadcasting from a homelab in {location}. {soul}.
+
+Hard rules:
+- Output ONLY the words to be spoken aloud. No stage directions, no asterisks, no quotes around your dialogue.
+- Keep it to 2-4 sentences unless asked for longer.
+- Never say "and now", "next up", "coming up next" — those are tells. Be more natural.
+- Don't repeat the artist and title robotically. Reference them in passing if at all.
+- Reference the actual context (time, weather, what's coming) naturally.`;
+
+const FREQUENCIES = ['quiet', 'moderate', 'aggressive'];
+
 const DEFAULTS = {
   jingleRatio: 30,                    // 1 jingle per N music tracks
   crossfadeDuration: 4.0,             // seconds
   weather: { lat: 52.5862, lng: -2.1288, locationName: 'Wolverhampton' },
+  dj: {
+    name: 'Frequency',
+    soul: 'warm, slightly understated, never corny — late-night BBC 6 Music presenter; observant, dry humour, specific',
+    systemPrompt: DEFAULT_DJ_PROMPT_TEMPLATE,
+    frequency: 'moderate',
+  },
 };
 
 const BOUNDS = {
@@ -35,12 +56,22 @@ export async function load() {
       lng: stored.weather?.lng ?? DEFAULTS.weather.lng,
       locationName: stored.weather?.locationName ?? DEFAULTS.weather.locationName,
     },
+    dj: {
+      name: stored.dj?.name ?? DEFAULTS.dj.name,
+      soul: stored.dj?.soul ?? DEFAULTS.dj.soul,
+      systemPrompt: stored.dj?.systemPrompt ?? DEFAULTS.dj.systemPrompt,
+      frequency: FREQUENCIES.includes(stored.dj?.frequency) ? stored.dj.frequency : DEFAULTS.dj.frequency,
+    },
   };
   return cache;
 }
 
 export function get() {
   return cache || DEFAULTS;
+}
+
+export function getDefaults() {
+  return DEFAULTS;
 }
 
 // Validate + persist. Returns { saved, requiresRestart } so the UI can react.
@@ -79,11 +110,51 @@ export async function update(patch) {
       next.weather.locationName = w.locationName.trim().slice(0, 80);
     }
   }
+  if ('dj' in patch) {
+    const d = patch.dj || {};
+    if (d.name !== undefined) {
+      const v = String(d.name).trim();
+      if (v.length < 1 || v.length > 40) throw new Error('dj.name must be 1-40 chars');
+      next.dj.name = v;
+    }
+    if (d.soul !== undefined) {
+      const v = String(d.soul).trim();
+      if (v.length < 1 || v.length > 400) throw new Error('dj.soul must be 1-400 chars');
+      next.dj.soul = v;
+    }
+    if (d.systemPrompt !== undefined) {
+      const v = String(d.systemPrompt).trim();
+      if (v.length < 50 || v.length > 4000) throw new Error('dj.systemPrompt must be 50-4000 chars');
+      if (!v.includes('{name}')) {
+        throw new Error('dj.systemPrompt must contain the {name} placeholder');
+      }
+      next.dj.systemPrompt = v;
+    }
+    if (d.frequency !== undefined) {
+      if (!FREQUENCIES.includes(d.frequency)) {
+        throw new Error(`dj.frequency must be one of: ${FREQUENCIES.join(', ')}`);
+      }
+      next.dj.frequency = d.frequency;
+    }
+  }
 
   cache = next;
   await writeFile(SETTINGS_PATH, JSON.stringify(next, null, 2));
   await writeLiquidsoapSettings(next);
   return { saved: next, requiresRestart: restart };
+}
+
+// Render the DJ system prompt by substituting {name}, {soul}, {station},
+// {location} into the operator-supplied template. Called fresh per LLM call
+// so live edits show up in the next intro/link without a restart.
+export function renderDjPrompt(dj, ctx = {}) {
+  const station = ctx.station || 'SUB/WAVE';
+  const location = ctx.location || (cache?.weather?.locationName ?? DEFAULTS.weather.locationName);
+  return (dj?.systemPrompt || DEFAULT_DJ_PROMPT_TEMPLATE)
+    .replaceAll('{name}', dj?.name || DEFAULTS.dj.name)
+    .replaceAll('{soul}', dj?.soul || DEFAULTS.dj.soul)
+    .replaceAll('{station}', station)
+    .replaceAll('{location}', location);
 }
 
 // Liquidsoap reads two tiny text files instead of JSON — Liquidsoap 2.2.5

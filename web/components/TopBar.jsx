@@ -3,7 +3,7 @@
 import { Settings } from 'lucide-react';
 import { useClock } from '../lib/hooks';
 
-export default function TopBar({ tunedIn, context, transmission, onOpenSettings }) {
+export default function TopBar({ tunedIn, context, transmission, djName, onOpenSettings }) {
   const clock = useClock();
   const time = clock ? clock.toLocaleTimeString('en-GB', { hour12: false }) : '--:--:--';
   const city = context?.weather?.locationName || context?.city;
@@ -17,6 +17,11 @@ export default function TopBar({ tunedIn, context, transmission, onOpenSettings 
     >
       <div className="flex items-baseline gap-[14px]">
         <span className="v3-eyebrow">SUB/WAVE</span>
+        {djName && (
+          <span className="v3-caption" style={{ color: 'var(--accent)' }}>
+            with {djName}
+          </span>
+        )}
         <span className="v3-caption" style={{ color: 'var(--muted)' }}>
           vol. 1 · transmission {String(transmission ?? 241).padStart(4, '0')}
         </span>

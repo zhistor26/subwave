@@ -65,7 +65,8 @@
 html, body {
   background: var(--bg);
   color: var(--ink);
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-mono), ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-feature-settings: "calt" 1, "ss01" 1; /* contextual + slashed zero */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -152,27 +153,33 @@ body::after {
   }
 }
 
-/* Helvetica Neue title block helpers — Tailwind can't express clamp() cleanly. */
+/* Mono title block — JetBrains Mono advance width is ~60% em, so the title
+   clamp tops out lower than the proportional version (the same character
+   count fills more horizontal space). Tracking goes to zero — mono cells
+   already provide their own rhythm and negative tracking collides glyphs. */
 .v3-title {
-  font-size: clamp(64px, 10vw, 144px);
-  line-height: 0.86;
-  letter-spacing: -0.04em;
+  font-size: clamp(44px, 7vw, 96px);
+  line-height: 0.92;
+  letter-spacing: 0;
   font-weight: 800;
   text-wrap: balance;
 }
 .v3-subtitle {
-  font-size: clamp(20px, 2.4vw, 36px);
-  letter-spacing: -0.01em;
+  font-size: clamp(16px, 2vw, 28px);
+  letter-spacing: 0;
+  font-weight: 500;
 }
 .v3-eyebrow {
   font-size: 11px;
-  letter-spacing: 0.4em;
+  letter-spacing: 0.25em; /* mono cells already spread, so tighten the tracking */
   text-transform: uppercase;
   font-weight: 700;
 }
 .v3-caption {
   font-size: 10px;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+  font-weight: 500;
 }
+/* Mono is already tabular by design, but keep the class as a no-op alias. */
 .v3-tab-num { font-variant-numeric: tabular-nums; }

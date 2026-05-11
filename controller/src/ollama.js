@@ -3,6 +3,15 @@
 //   2. DJ script generation: context → spoken segment (creative output)
 
 import { config } from './config.js';
+import * as settings from './settings.js';
+
+function djSystem() {
+  const s = settings.get();
+  return settings.renderDjPrompt(s.dj, {
+    station: 'SUB/WAVE',
+    location: s.weather?.locationName,
+  });
+}
 
 // Ring buffer of recent LLM calls for the /debug endpoint
 export const recentCalls = [];
@@ -113,15 +122,6 @@ export async function matchRequest(userQuery, { listenerName = null } = {}) {
 // DJ SCRIPTS — creative spoken segments
 // ---------------------------------------------------------------------------
 
-const DJ_SYSTEM = `You are the on-air DJ for SUB/WAVE, a personal radio station broadcasting from a homelab in Wolverhampton, UK. You are warm, slightly understated, never corny. You sound like a late-night BBC 6 Music presenter — observant, dry humour, specific.
-
-Hard rules:
-- Output ONLY the words to be spoken aloud. No stage directions, no asterisks, no quotes around your dialogue.
-- Keep it to 2-4 sentences unless asked for longer.
-- Never say "and now", "next up", "coming up next" — those are tells. Be more natural.
-- Don't repeat the artist and title robotically. Reference them in passing if at all.
-- Reference the actual context (time, weather, what's coming) naturally.`;
-
 export async function generateIntro({ track, context, requestedBy = null }) {
   const ctxLines = [];
   if (context.time) ctxLines.push(`Time: ${context.time.period} (${context.time.vibe})`);
@@ -134,7 +134,7 @@ export async function generateIntro({ track, context, requestedBy = null }) {
 
   return ollamaChat(
     [
-      { role: 'system', content: DJ_SYSTEM },
+      { role: 'system', content: djSystem() },
       { role: 'user', content: prompt },
     ],
     { temperature: 0.85, kind: 'generateIntro' }
@@ -145,7 +145,7 @@ export async function generateWeatherSegment(weather, time) {
   const prompt = `It's ${time.period} in ${weather.location}. Conditions: ${weather.condition}, ${weather.temp}°C. Write a brief weather check, in character. 1-2 sentences.`;
   return ollamaChat(
     [
-      { role: 'system', content: DJ_SYSTEM },
+      { role: 'system', content: djSystem() },
       { role: 'user', content: prompt },
     ],
     { temperature: 0.85, kind: 'generateWeatherSegment' }
@@ -153,10 +153,11 @@ export async function generateWeatherSegment(weather, time) {
 }
 
 export async function generateStationId() {
-  const prompt = `Write a 1-sentence station ident. Format: "You're listening to SUB/WAVE..." or similar. Be brief and a little understated.`;
+  const djName = settings.get().dj?.name || 'your host';
+  const prompt = `Write a 1-sentence station ident. Format: "You're listening to SUB/WAVE with ${djName}..." or similar. Be brief and a little understated.`;
   return ollamaChat(
     [
-      { role: 'system', content: DJ_SYSTEM },
+      { role: 'system', content: djSystem() },
       { role: 'user', content: prompt },
     ],
     { temperature: 0.9, kind: 'generateStationId' }
@@ -221,7 +222,7 @@ export async function generateLink({ previous, current, context }) {
 
   return ollamaChat(
     [
-      { role: 'system', content: DJ_SYSTEM },
+      { role: 'system', content: djSystem() },
       { role: 'user', content: prompt },
     ],
     { temperature: 0.85, kind: 'generateLink' }
@@ -232,7 +233,7 @@ export async function generateHourlyTime(time, weather) {
   const prompt = `It's the top of the hour. Time is ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })} in ${weather.location}. ${weather.condition}, ${weather.temp}°C. Brief time check, in character. 1 sentence.`;
   return ollamaChat(
     [
-      { role: 'system', content: DJ_SYSTEM },
+      { role: 'system', content: djSystem() },
       { role: 'user', content: prompt },
     ],
     { temperature: 0.85, kind: 'generateHourlyTime' }
