@@ -2,81 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { background: #0c0a09; }
-
-/* Cassette-tape grain: a tiny SVG noise repeated, very faint */
-body {
-  background-image:
-    radial-gradient(ellipse at 50% -10%, rgba(245, 158, 11, 0.05), transparent 60%),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 0.95  0 0 0 0 0.7  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-blend-mode: normal, screen;
+/* V3 / Frequency — newsprint cream, near-black ink, hot vermilion. */
+:root {
+  --bg: #f3efe6;
+  --ink: #161412;
+  --muted: #7a736a;
+  --accent: oklch(0.62 0.22 25); /* ~ #d94b2a hot vermilion */
+  --soft-border: rgba(0, 0, 0, 0.08);
+  --drawer-shadow: -30px 0 60px -20px rgba(0, 0, 0, 0.15);
 }
 
-/* Range slider: hide the native chrome so our VU overlay shows through. */
-.sw-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-.sw-slider:focus { outline: none; }
-.sw-slider::-webkit-slider-runnable-track {
-  background: transparent;
-  height: 100%;
-}
-.sw-slider::-moz-range-track {
-  background: transparent;
-  height: 100%;
-}
-.sw-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 6px;
-  height: 22px;
-  background: rgba(245, 158, 11, 0.95);
-  border: 1px solid rgba(120, 53, 15, 0.8);
-  border-radius: 1px;
-  margin-top: -2px;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.45);
-}
-.sw-slider::-moz-range-thumb {
-  width: 6px;
-  height: 22px;
-  background: rgba(245, 158, 11, 0.95);
-  border: 1px solid rgba(120, 53, 15, 0.8);
-  border-radius: 1px;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.45);
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Thin amber-tinted scrollbars (booth feed, played, up-next). */
-.sw-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.sw-scroll::-webkit-scrollbar-track { background: transparent; }
-.sw-scroll::-webkit-scrollbar-thumb {
-  background: rgba(120, 53, 15, 0.45);
-  border-radius: 2px;
+/* Paper grain — fixed full-viewport SVG turbulence at low opacity. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 0.4  0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  z-index: 100;
 }
-.sw-scroll::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.55); }
-.sw-scroll { scrollbar-width: thin; scrollbar-color: rgba(120, 53, 15, 0.45) transparent; }
 
-/* Focus ring used on interactive elements that don't get one from Tailwind. */
-.sw-focus:focus-visible {
-  outline: 1px solid rgba(245, 158, 11, 0.75);
+/* Ink-tinted scrollbars used inside drawers and any internal scroll areas. */
+.v3-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.v3-scroll::-webkit-scrollbar-track { background: transparent; }
+.v3-scroll::-webkit-scrollbar-thumb { background: rgba(22, 20, 18, 0.25); }
+.v3-scroll::-webkit-scrollbar-thumb:hover { background: rgba(22, 20, 18, 0.5); }
+.v3-scroll { scrollbar-width: thin; scrollbar-color: rgba(22, 20, 18, 0.25) transparent; }
+
+/* 1px ink focus ring on interactive elements that don't get one from native styles. */
+.v3-focus:focus-visible {
+  outline: 1px solid var(--ink);
   outline-offset: 2px;
 }
 
-/* Honor reduced-motion across the board. */
+/* Drawer + dialog animations. */
+@keyframes v3-slide-in-right {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes v3-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes v3-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.v3-drawer-content { animation: v3-slide-in-right 220ms cubic-bezier(.2,.7,.2,1); }
+.v3-drawer-overlay { animation: v3-fade-in 220ms ease-out; }
+.v3-blink { animation: v3-blink 1s steps(1) infinite; }
+
+/* Sonner toast styling — sharp ink-bordered cream cards. */
+.v3-toast {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  padding: 12px 16px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  font-family: inherit;
+  min-width: 280px;
+}
+.v3-toast[data-type="success"] { color: var(--accent); }
+.v3-toast[data-type="error"]   { color: #c5302a; }
+
+/* Reduced motion — collapse anything that animates. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-spin-slow,
-  .animate-pulse-halo,
-  .animate-caret-blink,
-  .animate-bar-1,
-  .animate-bar-2,
-  .animate-bar-3,
-  .animate-bar-4,
-  .animate-bar-5,
-  .animate-bar-6,
-  .animate-halo-soft,
-  .animate-scanline {
+  .v3-drawer-content,
+  .v3-drawer-overlay,
+  .v3-blink {
     animation: none !important;
   }
 }
+
+/* Helvetica Neue title block helpers — Tailwind can't express clamp() cleanly. */
+.v3-title {
+  font-size: clamp(64px, 10vw, 144px);
+  line-height: 0.86;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+  text-wrap: balance;
+}
+.v3-subtitle {
+  font-size: clamp(20px, 2.4vw, 36px);
+  letter-spacing: -0.01em;
+}
+.v3-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.v3-caption {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+.v3-tab-num { font-variant-numeric: tabular-nums; }

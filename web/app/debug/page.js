@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { fmtSize } from '../../lib/format';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function DebugPage() {
   const [data, setData] = useState(null);
@@ -35,99 +36,135 @@ export default function DebugPage() {
   }, [data?.liquidsoapLog, autoScroll]);
 
   return (
-    <div className="min-h-screen bg-stone-950 text-amber-50 font-mono text-xs">
-      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4">
-        <header className="flex flex-wrap items-center gap-3 border-b border-amber-900/40 pb-3">
-          <h1 className="text-2xl font-black tracking-tighter">
-            SUB<span className="text-amber-500">/</span>WAVE
-            <span className="text-amber-200/40 font-normal text-sm ml-3">/debug</span>
+    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
+      <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4" style={{ fontSize: 12 }}>
+        <header
+          className="flex flex-wrap items-center gap-3 pb-3"
+          style={{ borderBottom: '1px solid var(--ink)' }}
+        >
+          <h1 className="v3-eyebrow" style={{ fontSize: 13 }}>
+            SUB/WAVE · DEBUG
           </h1>
-          <a href="/" className="text-[10px] tracking-widest uppercase text-amber-500/70 hover:text-amber-300 underline underline-offset-4">← back to player</a>
-          <div className="ml-auto flex items-center gap-3 text-[10px] tracking-widest uppercase">
-            <span className={`flex items-center gap-1 ${err ? 'text-red-400' : 'text-emerald-400'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${err ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
+          <a
+            href="/"
+            className="v3-caption underline underline-offset-4 v3-focus"
+            style={{ color: 'var(--muted)' }}
+          >
+            ← back to player
+          </a>
+          <div className="ml-auto flex items-center gap-3 v3-caption">
+            <span style={{ color: err ? '#c5302a' : 'var(--accent)' }}>
+              <span style={{ color: err ? '#c5302a' : 'var(--accent)' }}>●</span>{' '}
               {err ? 'down' : 'live'}
             </span>
             <button
               onClick={() => setPaused(!paused)}
-              className="border border-amber-700/60 hover:border-amber-400 px-2 py-1 text-amber-200"
+              className="v3-focus cursor-pointer"
+              style={{
+                border: '1px solid var(--ink)',
+                padding: '4px 10px',
+                background: 'transparent',
+                color: 'var(--ink)',
+                fontSize: 10,
+                letterSpacing: '0.3em',
+                textTransform: 'uppercase',
+              }}
             >
               {paused ? 'resume' : 'pause'}
             </button>
-            <span className="text-amber-500/50">refresh 2s</span>
+            <span style={{ color: 'var(--muted)' }}>refresh 2s</span>
           </div>
         </header>
 
         {err && (
-          <div className="border border-red-700/60 bg-red-950/30 px-3 py-2 text-red-300">
+          <div
+            style={{
+              border: '1px solid #c5302a',
+              color: '#c5302a',
+              padding: '8px 12px',
+            }}
+          >
             controller error: {err}
           </div>
         )}
 
         {data && (
           <div className="grid lg:grid-cols-2 gap-4">
-            {/* NOW PLAYING */}
             <Panel title="Now playing (now-playing.json)">
               <KV obj={data.nowPlaying} />
             </Panel>
 
-            {/* ICECAST */}
             <Panel title="Icecast">
               <KV obj={data.icecast} />
             </Panel>
 
-            {/* CURRENT REQUEST */}
             <Panel title="Queue · current served request">
               {data.queue.current ? <KV obj={data.queue.current} /> : <Empty>none (auto-playlist)</Empty>}
             </Panel>
 
-            {/* CONTEXT */}
             <Panel title="DJ context">
               <KV obj={data.context} />
             </Panel>
 
-            {/* UPCOMING */}
             <Panel title={`Upcoming queue (${data.queue.upcoming.length})`} fullWidth>
               {data.queue.upcoming.length === 0 ? <Empty>queue empty</Empty> : (
                 <ol className="space-y-1">
                   {data.queue.upcoming.map((t, i) => (
                     <li key={i} className="flex gap-3">
-                      <span className="text-amber-500/50 tabular-nums w-6">{i+1}</span>
-                      <span className="text-amber-100 truncate flex-1">{t.title} — <span className="text-amber-300/70">{t.artist}</span></span>
-                      {t.requestedBy && <span className="text-cyan-400/80">↳ {t.requestedBy}</span>}
+                      <span className="v3-tab-num" style={{ color: 'var(--muted)', width: 24 }}>{i + 1}</span>
+                      <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
+                        {t.title} — <span style={{ color: 'var(--muted)' }}>{t.artist}</span>
+                      </span>
+                      {t.requestedBy && (
+                        <span style={{ color: 'var(--accent)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
+                          ↳ {t.requestedBy}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ol>
               )}
             </Panel>
 
-            {/* DJ LOG */}
             <Panel title={`DJ log (${data.queue.djLogCount} total, last 30)`} fullWidth>
-              <div className="space-y-0.5 max-h-72 overflow-y-auto">
+              <div className="v3-scroll" style={{ maxHeight: 288, overflowY: 'auto' }}>
                 {data.queue.djLog.map(e => (
-                  <div key={e.id} className="flex gap-3 leading-relaxed">
-                    <span className="text-amber-500/40 tabular-nums shrink-0 w-20">{new Date(e.t).toLocaleTimeString('en-GB', { hour12: false })}</span>
-                    <span className={`shrink-0 w-24 ${kindColor(e.kind)}`}>[{e.kind}]</span>
-                    <span className="text-amber-100/90 break-all">{e.message}</span>
+                  <div key={e.id} className="flex gap-3" style={{ lineHeight: 1.6 }}>
+                    <span
+                      className="v3-tab-num shrink-0"
+                      style={{ color: 'var(--muted)', width: 80 }}
+                    >
+                      {new Date(e.t).toLocaleTimeString('en-GB', { hour12: false })}
+                    </span>
+                    <span
+                      className="shrink-0"
+                      style={{ width: 96, color: kindColor(e.kind), fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase' }}
+                    >
+                      [{e.kind}]
+                    </span>
+                    <span className="break-all" style={{ color: 'var(--ink)' }}>{e.message}</span>
                   </div>
                 ))}
               </div>
             </Panel>
 
-            {/* OLLAMA */}
             <Panel title={`Ollama recent calls (${data.ollama.recentCalls.length})`} fullWidth>
-              <div className="text-amber-500/50 mb-2">{data.ollama.model} @ {data.ollama.url}</div>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="v3-caption mb-2" style={{ color: 'var(--muted)' }}>
+                {data.ollama.model} @ {data.ollama.url}
+              </div>
+              <div className="space-y-2 v3-scroll" style={{ maxHeight: 384, overflowY: 'auto' }}>
                 {data.ollama.recentCalls.length === 0 && <Empty>no calls yet</Empty>}
                 {data.ollama.recentCalls.map((c, i) => (
-                  <details key={i} className="border border-amber-900/40 px-2 py-1 bg-stone-900/50">
+                  <details key={i} style={{ border: '1px solid var(--ink)', padding: '4px 8px' }}>
                     <summary className="cursor-pointer flex flex-wrap items-center gap-2">
-                      <span className={c.ok ? 'text-emerald-400' : 'text-red-400'}>{c.ok ? '✓' : '✗'}</span>
-                      <span className="text-amber-300">{c.kind}</span>
-                      <span className="text-amber-200/50">{c.ms}ms</span>
-                      <span className="text-amber-500/40 ml-auto">{new Date(c.t).toLocaleTimeString('en-GB', { hour12: false })}</span>
+                      <span style={{ color: c.ok ? 'var(--accent)' : '#c5302a' }}>{c.ok ? '✓' : '✗'}</span>
+                      <span style={{ color: 'var(--ink)' }}>{c.kind}</span>
+                      <span style={{ color: 'var(--muted)' }}>{c.ms}ms</span>
+                      <span className="ml-auto v3-tab-num" style={{ color: 'var(--muted)' }}>
+                        {new Date(c.t).toLocaleTimeString('en-GB', { hour12: false })}
+                      </span>
                     </summary>
-                    <div className="mt-2 space-y-1 text-[11px]">
+                    <div className="mt-2 space-y-1" style={{ fontSize: 11 }}>
                       {c.user && <Field label="user">{c.user}</Field>}
                       {c.systemPreview && <Field label="system…">{c.systemPreview}…</Field>}
                       {c.response && <Field label="response">{c.response}</Field>}
@@ -138,12 +175,11 @@ export default function DebugPage() {
               </div>
             </Panel>
 
-            {/* LIQUIDSOAP LOG */}
             <Panel
               title="Liquidsoap log (last 100 lines)"
               fullWidth
               extra={
-                <label className="flex items-center gap-1 text-amber-200/70 text-[10px]">
+                <label className="flex items-center gap-1 v3-caption" style={{ color: 'var(--muted)' }}>
                   <input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)} />
                   auto-scroll
                 </label>
@@ -151,51 +187,60 @@ export default function DebugPage() {
             >
               <pre
                 ref={logRef}
-                className="text-[11px] leading-snug max-h-96 overflow-y-auto whitespace-pre-wrap break-all text-amber-200/80 bg-stone-950/80 p-2 border border-amber-900/30"
+                className="v3-scroll"
+                style={{
+                  fontSize: 11,
+                  lineHeight: 1.4,
+                  maxHeight: 384,
+                  overflowY: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  color: 'var(--ink)',
+                  background: 'transparent',
+                  padding: 8,
+                  border: '1px solid rgba(0,0,0,0.1)',
+                }}
               >
                 {data.liquidsoapLog}
               </pre>
             </Panel>
 
-            {/* STATE FILES */}
             <Panel title="State dir /var/sub-wave">
               <Files files={data.stateFiles} />
             </Panel>
 
-            {/* VOICE FILES */}
             <Panel title={`DJ voice WAVs (${data.voiceFiles?.length ?? 0})`}>
               <Files files={data.voiceFiles} />
             </Panel>
 
-            {/* LIBRARY TAGS */}
             <Panel title={`Library tags · ${data.library?.total ?? 0} tracks`} fullWidth>
               {!data.library?.total ? (
-                <Empty>not tagged yet — run <code className="text-amber-300">docker exec sub-wave-controller npm run tag</code></Empty>
+                <Empty>not tagged yet — start tagger from settings</Empty>
               ) : (
-                <div className="space-y-2">
-                  <div className="text-amber-500/50">
+                <div className="space-y-3">
+                  <div className="v3-caption" style={{ color: 'var(--muted)' }}>
                     last updated: {data.library.updatedAt ? new Date(data.library.updatedAt).toLocaleString('en-GB') : '?'}
                   </div>
                   <div>
-                    <div className="text-[10px] tracking-widest text-amber-500/60 uppercase mb-1">by mood</div>
+                    <div className="v3-caption mb-1" style={{ color: 'var(--muted)' }}>by mood</div>
                     <div className="flex flex-wrap gap-1">
                       {Object.entries(data.library.byMood || {})
                         .sort((a, b) => b[1] - a[1])
                         .map(([m, n]) => (
-                          <span key={m} className="border border-amber-900/40 px-2 py-0.5 bg-stone-900/50">
-                            <span className="text-amber-100">{m}</span>{' '}
-                            <span className="text-amber-500/60 tabular-nums">{n}</span>
+                          <span key={m} style={{ border: '1px solid var(--ink)', padding: '2px 8px' }}>
+                            <span style={{ color: 'var(--ink)' }}>{m}</span>{' '}
+                            <span className="v3-tab-num" style={{ color: 'var(--muted)' }}>{n}</span>
                           </span>
                         ))}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] tracking-widest text-amber-500/60 uppercase mb-1">by energy</div>
+                    <div className="v3-caption mb-1" style={{ color: 'var(--muted)' }}>by energy</div>
                     <div className="flex flex-wrap gap-1">
                       {Object.entries(data.library.byEnergy || {}).map(([e, n]) => (
-                        <span key={e} className="border border-amber-900/40 px-2 py-0.5 bg-stone-900/50">
-                          <span className="text-amber-100">{e}</span>{' '}
-                          <span className="text-amber-500/60 tabular-nums">{n}</span>
+                        <span key={e} style={{ border: '1px solid var(--ink)', padding: '2px 8px' }}>
+                          <span style={{ color: 'var(--ink)' }}>{e}</span>{' '}
+                          <span className="v3-tab-num" style={{ color: 'var(--muted)' }}>{n}</span>
                         </span>
                       ))}
                     </div>
@@ -204,14 +249,13 @@ export default function DebugPage() {
               )}
             </Panel>
 
-            {/* CONFIG */}
             <Panel title="Config (redacted)" fullWidth>
               <KV obj={data.config} />
             </Panel>
           </div>
         )}
 
-        {!data && !err && <div className="text-amber-200/40 italic">connecting…</div>}
+        {!data && !err && <div className="italic" style={{ color: 'var(--muted)' }}>connecting…</div>}
       </div>
     </div>
   );
@@ -219,9 +263,15 @@ export default function DebugPage() {
 
 function Panel({ title, children, fullWidth, extra }) {
   return (
-    <section className={`border border-amber-900/40 bg-stone-900/30 ${fullWidth ? 'lg:col-span-2' : ''}`}>
-      <div className="px-3 py-1.5 border-b border-amber-900/40 bg-amber-950/20 flex items-center justify-between">
-        <span className="text-[10px] tracking-[0.3em] text-amber-500/80 uppercase">{title}</span>
+    <section
+      className={fullWidth ? 'lg:col-span-2' : ''}
+      style={{ border: '1px solid var(--ink)' }}
+    >
+      <div
+        className="flex items-center justify-between px-3 py-2"
+        style={{ borderBottom: '1px solid var(--ink)' }}
+      >
+        <span className="v3-caption" style={{ color: 'var(--ink)' }}>{title}</span>
         {extra}
       </div>
       <div className="p-3">{children}</div>
@@ -235,10 +285,10 @@ function KV({ obj }) {
     <div className="space-y-0.5">
       {Object.entries(obj).map(([k, v]) => (
         <div key={k} className="flex gap-3">
-          <span className="text-amber-500/60 shrink-0 w-32 truncate">{k}</span>
-          <span className="text-amber-100/95 break-all flex-1">
-            {v === null ? <em className="text-amber-200/30">null</em>
-              : typeof v === 'object' ? <pre className="text-[11px] inline whitespace-pre-wrap">{JSON.stringify(v, null, 2)}</pre>
+          <span className="shrink-0 w-32 truncate v3-caption" style={{ color: 'var(--muted)' }}>{k}</span>
+          <span className="break-all flex-1" style={{ color: 'var(--ink)' }}>
+            {v === null ? <em style={{ color: 'var(--muted)' }}>null</em>
+              : typeof v === 'object' ? <pre className="inline whitespace-pre-wrap" style={{ fontSize: 11 }}>{JSON.stringify(v, null, 2)}</pre>
               : String(v)}
           </span>
         </div>
@@ -253,11 +303,15 @@ function Files({ files }) {
     <div className="space-y-0.5">
       {files.map(f => (
         <div key={f.name} className="flex gap-3">
-          <span className={`shrink-0 w-44 truncate ${f.isDir ? 'text-cyan-400/80' : 'text-amber-100'}`}>
+          <span className="shrink-0 truncate" style={{ width: 176, color: f.isDir ? 'var(--accent)' : 'var(--ink)' }}>
             {f.isDir ? '📁 ' : ''}{f.name}
           </span>
-          <span className="text-amber-500/50 tabular-nums w-16 text-right shrink-0">{fmtSize(f.size)}</span>
-          <span className="text-amber-500/40 ml-auto shrink-0">{f.mtime ? new Date(f.mtime).toLocaleTimeString('en-GB', { hour12: false }) : ''}</span>
+          <span className="v3-tab-num shrink-0 text-right" style={{ width: 64, color: 'var(--muted)' }}>
+            {fmtSize(f.size)}
+          </span>
+          <span className="v3-tab-num ml-auto shrink-0" style={{ color: 'var(--muted)' }}>
+            {f.mtime ? new Date(f.mtime).toLocaleTimeString('en-GB', { hour12: false }) : ''}
+          </span>
         </div>
       ))}
     </div>
@@ -267,35 +321,33 @@ function Files({ files }) {
 function Field({ label, children, tone }) {
   return (
     <div className="flex gap-2">
-      <span className="text-amber-500/60 shrink-0 w-16">{label}</span>
-      <span className={`${tone === 'err' ? 'text-red-300' : 'text-amber-100/90'} whitespace-pre-wrap break-all`}>{children}</span>
+      <span className="shrink-0 v3-caption" style={{ color: 'var(--muted)', width: 64 }}>{label}</span>
+      <span
+        className="whitespace-pre-wrap break-all"
+        style={{ color: tone === 'err' ? '#c5302a' : 'var(--ink)' }}
+      >
+        {children}
+      </span>
     </div>
   );
 }
 
 function Empty({ children }) {
-  return <div className="text-amber-200/30 italic">{children}</div>;
-}
-
-function fmtSize(n) {
-  if (n == null) return '';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return <div className="italic" style={{ color: 'var(--muted)' }}>{children}</div>;
 }
 
 function kindColor(k) {
   switch (k) {
-    case 'playing': return 'text-emerald-400';
-    case 'queued': return 'text-amber-200/70';
-    case 'request': return 'text-cyan-400';
+    case 'playing': return 'var(--accent)';
+    case 'queued':  return 'var(--muted)';
+    case 'request': return 'var(--accent)';
     case 'dj-speak':
     case 'hourly-check':
     case 'weather':
-    case 'station-id': return 'text-amber-400';
-    case 'scheduler': return 'text-fuchsia-300/80';
+    case 'station-id': return 'var(--accent)';
+    case 'scheduler': return 'var(--muted)';
     case 'error':
-    case 'miss': return 'text-red-400';
-    default: return 'text-amber-200/60';
+    case 'miss': return '#c5302a';
+    default: return 'var(--muted)';
   }
 }
