@@ -8,7 +8,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-STATE_DIR="${STATE_DIR:-/var/lib/subwave}"
+# Pick up STATE_DIR from docker/.env (where setup.sh wrote it) so we don't
+# have to remember to export it on every run.
+[[ -z "${STATE_DIR:-}" && -f docker/.env ]] && \
+  STATE_DIR=$(grep -E '^STATE_DIR=' docker/.env | cut -d= -f2-)
+STATE_DIR="${STATE_DIR:-$(pwd)/state}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker/docker-compose.prod.yml}"
 COMPOSE="docker compose -f ${COMPOSE_FILE}"
 

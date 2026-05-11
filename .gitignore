@@ -21,6 +21,7 @@ state/next.txt
 state/say.txt
 state/now-playing.json
 state/emergency.mp3
+state/icecast.xml
 state/jingles.json
 state/moods.json
 state/settings.json

@@ -20,7 +20,9 @@ services:
       - ICECAST_PASSWORD=${ICECAST_RELAY_PASSWORD:-changeme}
       - ICECAST_HOSTNAME=localhost
     volumes:
-      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
+      # Rendered by scripts/setup.sh from icecast.xml.template — keeps secrets
+      # out of the repo and lets the moul/icecast entrypoint's sed run cleanly.
+      - ../state/icecast.xml:/etc/icecast2/icecast.xml:ro
 
   # -------------------------------------------------------------------------
   # LIQUIDSOAP — pulls from queue file, broadcasts to Icecast
@@ -36,6 +38,11 @@ services:
       - icecast
     environment:
       - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-changeme}
+    extra_hosts:
+      # Lets Liquidsoap fetch Subsonic stream URLs that point at host services
+      # (e.g. NAVIDROME_URL=http://host.docker.internal:4533) without leaking
+      # the lookup to public DNS.
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../liquidsoap/radio.liq:/etc/liquidsoap/radio.liq:ro
       - ../state:/var/sub-wave
