@@ -63,7 +63,7 @@ export default function SetupPage() {
               Docker, and (optionally) <code className="bs-code-inline">ffmpeg</code> for
               emergency / studio-bed audio.
             </p>
-            <CodeBlock>{`git clone https://github.com/pklair/subwave.git
+            <CodeBlock>{`git clone https://github.com/perminder-klair/subwave.git
 cd subwave
 npm install
 npm run setup`}</CodeBlock>
@@ -133,7 +133,7 @@ npm run down         # stop the stack`}</CodeBlock>
           <div className="bs-step-num">02</div>
           <div className="bs-step-body">
             <h3>Clone the repo</h3>
-            <CodeBlock>{`git clone https://github.com/pklair/subwave.git
+            <CodeBlock>{`git clone https://github.com/perminder-klair/subwave.git
 cd subwave`}</CodeBlock>
           </div>
         </div>
@@ -233,7 +233,7 @@ $EDITOR controller/.env`}</CodeBlock>
               {' '}<code className="bs-code-inline">/api/now-playing</code>, and
               scans recent logs for errors. Run it after any deploy:
             </p>
-            <CodeBlock>{`./.claude/skills/subwave-deploy/scripts/health-check.sh`}</CodeBlock>
+            <CodeBlock>{`./scripts/health-check.sh`}</CodeBlock>
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>
               Auto-detects which compose file is live and which host port Caddy
               is mapped to. Exits 0 if healthy. Safe to wire into cron or a
@@ -278,7 +278,7 @@ $EDITOR controller/.env`}</CodeBlock>
 # rebuild only what changed (example: controller + web)
 docker compose -f docker/docker-compose.prod.yml up -d --build controller web
 # then verify
-./.claude/skills/subwave-deploy/scripts/health-check.sh`}</CodeBlock>
+./scripts/health-check.sh`}</CodeBlock>
 
             <div className="bs-callout">
               <div className="bs-eyebrow">CLAUDE CODE USERS</div>
@@ -317,8 +317,8 @@ docker compose -f docker/docker-compose.prod.yml up -d --build controller web
             </li>
             <li>
               <strong>Source code</strong> —{' '}
-              <a href="https://github.com/pklair/subwave" target="_blank" rel="noreferrer" className="bs-link">
-                github.com/pklair/subwave ↗
+              <a href="https://github.com/perminder-klair/subwave" target="_blank" rel="noreferrer" className="bs-link">
+                github.com/perminder-klair/subwave ↗
               </a>{' '}
               — file an issue or read the CLAUDE.md for architecture notes.
             </li>

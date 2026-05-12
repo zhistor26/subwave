@@ -63,13 +63,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Admin basic auth — opt-in via env. When ADMIN_USER + ADMIN_PASS are unset
-// the gate is a no-op so local dev stays frictionless. The web SettingsDialog
-// stores the credentials in localStorage and attaches them as an Authorization
-// header to every admin-side fetch.
+// Admin basic auth. In production (NODE_ENV=production) ADMIN_USER and
+// ADMIN_PASS are MANDATORY — the controller refuses to start without them,
+// because /debug, /settings, and the jingle/tagger endpoints expose enough
+// internals (queue, recent LLM calls, library stats, hostnames) that a
+// public deploy without auth is effectively an open admin console. In dev
+// the gate stays opt-in so local iteration is frictionless.
 const ADMIN_USER = process.env.ADMIN_USER || '';
 const ADMIN_PASS = process.env.ADMIN_PASS || '';
 const ADMIN_AUTH_REQUIRED = Boolean(ADMIN_USER && ADMIN_PASS);
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+if (IS_PROD && !ADMIN_AUTH_REQUIRED) {
+  console.error(
+    '[auth] FATAL: NODE_ENV=production but ADMIN_USER and ADMIN_PASS are not set.\n' +
+    '       /debug, /settings and admin endpoints would be publicly readable.\n' +
+    '       Set ADMIN_USER and ADMIN_PASS in controller/.env, then rebuild the controller.'
+  );
+  process.exit(1);
+}
 
 function requireAdmin(req, res, next) {
   if (!ADMIN_AUTH_REQUIRED) return next();
@@ -85,6 +97,57 @@ function requireAdmin(req, res, next) {
 }
 
 console.log(`[auth] admin gate ${ADMIN_AUTH_REQUIRED ? 'ENABLED' : 'disabled (set ADMIN_USER+ADMIN_PASS to enable)'}`);
+
+// ---------------------------------------------------------------------------
+// Request endpoint throttling. The /request path triggers an LLM call,
+// Subsonic searches, TTS, and a booth-log write — cheap individually but
+// trivially weaponisable by anyone with curl. Defence in depth:
+//   - hard size caps on text + name
+//   - operator kill switch (REQUESTS_DISABLED env)
+//   - per-IP cooldown (no more than 1 request per COOLDOWN_MS)
+//   - per-IP hourly ceiling
+// State is in-memory; a controller restart resets counters. Good enough for a
+// homelab station; if you need durable enforcement, put a real ratelimit at
+// the Caddy edge.
+// ---------------------------------------------------------------------------
+const REQUEST_TEXT_MAX = 280;
+const REQUEST_NAME_MAX = 40;
+const REQUEST_COOLDOWN_MS = 20_000;
+const REQUEST_HOURLY_CAP = 8;
+const REQUESTS_DISABLED = process.env.REQUESTS_DISABLED === '1' || process.env.REQUESTS_DISABLED === 'true';
+
+const requestHistory = new Map(); // ip → { last: ts, hits: [ts,...] }
+
+function clientIp(req) {
+  // trust proxy chain (Caddy → controller). Take the left-most public-ish
+  // entry. We don't need cryptographic precision — just per-source bucketing.
+  const xff = (req.headers['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean);
+  return xff[0] || req.socket.remoteAddress || 'unknown';
+}
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const oneHourAgo = now - 3_600_000;
+  const rec = requestHistory.get(ip) || { last: 0, hits: [] };
+  rec.hits = rec.hits.filter(t => t > oneHourAgo);
+  if (rec.last && now - rec.last < REQUEST_COOLDOWN_MS) {
+    return { ok: false, retryAfter: Math.ceil((REQUEST_COOLDOWN_MS - (now - rec.last)) / 1000) };
+  }
+  if (rec.hits.length >= REQUEST_HOURLY_CAP) {
+    const oldest = rec.hits[0];
+    return { ok: false, retryAfter: Math.ceil((oldest + 3_600_000 - now) / 1000) };
+  }
+  rec.last = now;
+  rec.hits.push(now);
+  requestHistory.set(ip, rec);
+  // Opportunistic cleanup so the map doesn't grow unbounded over weeks.
+  if (requestHistory.size > 2000) {
+    for (const [k, v] of requestHistory) {
+      if (!v.hits.length && now - v.last > 3_600_000) requestHistory.delete(k);
+    }
+  }
+  return { ok: true };
+}
 
 // Icecast listener count — small helper used by /now-playing. Cheap local
 // fetch with a hard 1.5s timeout so a slow Icecast can never wedge the
@@ -154,14 +217,76 @@ app.get('/state', (req, res) => {
 // POST /request — listener submits a request
 // ---------------------------------------------------------------------------
 app.post('/request', async (req, res) => {
-  const { text, name } = req.body;
-  if (!text || !text.trim()) {
+  if (REQUESTS_DISABLED) {
+    return res.status(503).json({ success: false, message: 'Requests are temporarily closed.' });
+  }
+
+  const rawText = typeof req.body?.text === 'string' ? req.body.text : '';
+  const rawName = typeof req.body?.name === 'string' ? req.body.name : '';
+  const text = rawText.trim().slice(0, REQUEST_TEXT_MAX);
+  if (!text) {
     return res.status(400).json({ error: 'Empty request' });
   }
-  const requester = (name || '').trim() || 'anon';
+  const requester = (rawName.trim().slice(0, REQUEST_NAME_MAX)) || 'anon';
+
+  const gate = checkRateLimit(clientIp(req));
+  if (!gate.ok) {
+    res.setHeader('Retry-After', String(gate.retryAfter));
+    return res.status(429).json({
+      success: false,
+      message: `Easy there — try again in ${gate.retryAfter}s.`,
+      retryAfter: gate.retryAfter,
+    });
+  }
 
   try {
     queue.log('request', `${requester}: "${text}"`);
+
+    // 0. "more like this" — never let it through the generic search path,
+    // it's a meta-instruction about the current track, not a query. Pick
+    // another song by the current/last artist and skip the LLM match.
+    const isMoreLikeThis = /^more\s+like\s+this[.!?]?$/i.test(text);
+    if (isMoreLikeThis) {
+      const reference = queue.current || queue.history[0];
+      const refArtist = reference?.track?.artist;
+      if (!refArtist) {
+        return res.json({
+          success: false,
+          message: `Nothing's playing yet — tell me what you're after instead.`,
+        });
+      }
+      const recentIds = queue.recentlyPlayedIds(25);
+      const pick = await pickByArtistAndSort({
+        artistName: refArtist,
+        sort: null,
+        scope: 'song',
+        recentIds,
+      });
+      if (!pick) {
+        return res.json({
+          success: false,
+          message: `Couldn't find more from ${refArtist} in the crates.`,
+        });
+      }
+      const ctx = await getFullContext();
+      const introScript = await ollama.generateIntro({
+        track: pick,
+        context: ctx,
+        requestedBy: requester,
+      });
+      await queue.push({
+        track: pick,
+        requestedBy: requester,
+        intent: 'more_like_this',
+        introScript,
+      });
+      return res.json({
+        success: true,
+        ack: `More from ${refArtist}, coming up.`,
+        track: { title: pick.title, artist: pick.artist },
+        queuePosition: queue.upcoming.length,
+      });
+    }
 
     // 1. LLM matches intent
     const matched = await ollama.matchRequest(text, { listenerName: requester });

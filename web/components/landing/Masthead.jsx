@@ -67,7 +67,7 @@ export default function Masthead() {
         <Link href="/landing" className="bs-masthead-link">Home</Link>
         <span aria-hidden="true" className="bs-masthead-sep">·</span>
         <a
-          href="https://github.com/pklair/subwave"
+          href="https://github.com/perminder-klair/subwave"
           target="_blank"
           rel="noreferrer"
           className="bs-masthead-link"

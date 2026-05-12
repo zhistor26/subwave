@@ -19,7 +19,7 @@ settings.server.telnet.port := 1234
 # ---------------------------------------------------------------------------
 
 jingle_ratio = ref(30)
-crossfade_duration = ref(4.0)
+crossfade_duration = ref(10.0)
 
 if file.exists("/var/sub-wave/liquidsoap_jingle_ratio.txt") then
   raw = string.trim(file.contents("/var/sub-wave/liquidsoap_jingle_ratio.txt"))
@@ -29,7 +29,7 @@ end
 
 if file.exists("/var/sub-wave/liquidsoap_crossfade.txt") then
   raw = string.trim(file.contents("/var/sub-wave/liquidsoap_crossfade.txt"))
-  v = float_of_string(default=4.0, raw)
+  v = float_of_string(default=10.0, raw)
   if v >= 0.0 then crossfade_duration := v end
 end
 
@@ -185,9 +185,12 @@ def mic_chain(s) =
     threshold=-18.0,
     ratio=4.0,
     knee=2.0,
-    gain=4.0,
+    gain=7.0,
     s
   )
+  # Final makeup gain on top of the compressor. Lifts the voice another ~3 dB
+  # over the broadcast bus so it sits clearly above the ducked music bed.
+  s = amplify(1.4, s)
   # Slap delay (~40ms, feedback in dB) — adds room so the voice doesn't sit
   # dry on top of the music. Series only; echo sums dry+delayed internally.
   s = echo(delay=0.04, feedback=-15.0, ping_pong=false, s)
@@ -199,11 +202,12 @@ intro = mic_chain(intro_queue)
 
 # Mix voice over music with sidechain ducking.
 # Two stacked smooth_adds with different duck depths:
-#   - voice (solo segments) ducks music HEAVY to 25% — voice dominates
-#   - intro (talk-overs) ducks the result LIGHT to 55% — music stays audible
+#   - voice (solo segments) ducks music HEAVY to 15% — voice dominates
+#   - intro (talk-overs) ducks the result to 40% — music stays present but
+#     well under the voice (used to be 55% and intros were sometimes buried)
 # Stations IDs / hourly checks fire on `voice`; auto DJ links fire on `intro`.
-radio = smooth_add(p=0.25, normal=music, special=voice)
-radio = smooth_add(p=0.55, normal=radio, special=intro)
+radio = smooth_add(p=0.15, normal=music, special=voice)
+radio = smooth_add(p=0.40, normal=radio, special=intro)
 
 # ---------------------------------------------------------------------------
 # STUDIO BED — continuous low-level ambient room tone (Phase 2)

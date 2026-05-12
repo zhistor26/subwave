@@ -25,7 +25,7 @@ const FREQUENCIES = ['quiet', 'moderate', 'aggressive'];
 
 const DEFAULTS = {
   jingleRatio: 30,                    // 1 jingle per N music tracks
-  crossfadeDuration: 4.0,             // seconds
+  crossfadeDuration: 10.0,            // seconds
   weather: { lat: 52.5862, lng: -2.1288, locationName: 'Wolverhampton' },
   dj: {
     name: 'Frequency',

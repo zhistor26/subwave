@@ -57,7 +57,7 @@ export default function TopBar({ tunedIn, context, djName, listeners, onOpenSett
       >
         <span className="whitespace-nowrap">
           <span style={{ color: tunedIn ? 'var(--accent)' : 'var(--muted)' }}>●</span>
-          <span className="hidden sm:inline">{' '}{tunedIn ? 'on air' : 'off air'}</span>
+          <span className="hidden sm:inline">{' '}{tunedIn ? 'listening' : 'not tuned'}</span>
         </span>
         {listeners?.current != null && (
           <span

@@ -86,6 +86,11 @@ services:
     restart: unless-stopped
     depends_on:
       - liquidsoap
+    environment:
+      # Enables the production-only admin gate: refuses to boot unless
+      # ADMIN_USER + ADMIN_PASS are set in controller/.env. Local dev (using
+      # docker-compose.yml) leaves NODE_ENV unset so admin auth stays opt-in.
+      - NODE_ENV=production
     env_file:
       - ../controller/.env
     extra_hosts:

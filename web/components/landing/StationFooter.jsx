@@ -17,7 +17,7 @@ export default function StationFooter({ djName }) {
         <span>
           {djName ? `${djName} on the desk · ` : ''}
           <a
-            href="https://github.com/pklair/subwave"
+            href="https://github.com/perminder-klair/subwave"
             target="_blank"
             rel="noreferrer"
             className="bs-link"
