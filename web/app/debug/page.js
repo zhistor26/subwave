@@ -17,9 +17,33 @@ export default function DebugPage() {
     const tick = async () => {
       if (paused) return;
       try {
-        const r = await fetch(`${API_URL}/debug`);
+        // Reuse the admin token the Settings dialog stores in localStorage
+        // (key: subwave_admin_auth). Without it /debug returns 401 in prod
+        // and the page used to crash trying to read data.queue.current.
+        let auth = null;
+        try { auth = localStorage.getItem('subwave_admin_auth'); } catch {}
+        const r = await fetch(`${API_URL}/debug`, {
+          headers: auth ? { Authorization: `Basic ${auth}` } : undefined,
+        });
+        if (r.status === 401) {
+          if (!cancelled) {
+            setErr('admin auth required — open the player /listen → settings (gear icon) and sign in once, then refresh.');
+            setData(null);
+          }
+          return;
+        }
         const j = await r.json();
-        if (!cancelled) { setData(j); setErr(null); }
+        if (!cancelled) {
+          // Defensive: a malformed payload (anything missing the queue
+          // block) would crash the renderer. Surface as an error instead.
+          if (!j || typeof j !== 'object' || !j.queue) {
+            setErr(j?.error || 'unexpected response shape from /debug');
+            setData(null);
+          } else {
+            setData(j);
+            setErr(null);
+          }
+        }
       } catch (e) {
         if (!cancelled) setErr(e.message);
       }
@@ -99,15 +123,15 @@ export default function DebugPage() {
             </Panel>
 
             <Panel title="Queue · current served request">
-              {data.queue.current ? <KV obj={data.queue.current} /> : <Empty>none (auto-playlist)</Empty>}
+              {data.queue?.current ? <KV obj={data.queue.current} /> : <Empty>none (auto-playlist)</Empty>}
             </Panel>
 
             <Panel title="DJ context">
               <KV obj={data.context} />
             </Panel>
 
-            <Panel title={`Upcoming queue (${data.queue.upcoming.length})`} fullWidth>
-              {data.queue.upcoming.length === 0 ? <Empty>queue empty</Empty> : (
+            <Panel title={`Upcoming queue (${data.queue?.upcoming?.length ?? 0})`} fullWidth>
+              {(data.queue?.upcoming?.length ?? 0) === 0 ? <Empty>queue empty</Empty> : (
                 <ol className="space-y-1">
                   {data.queue.upcoming.map((t, i) => (
                     <li key={i} className="flex gap-3">

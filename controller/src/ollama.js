@@ -69,36 +69,65 @@ const REQUEST_SYSTEM = `You are the music librarian for a personal Navidrome lib
 You MUST respond with a JSON object containing ALL of these keys, in this exact order. Do not omit any key. Use null where a value does not apply.
 
 {
-  "search_terms": [array of 1-3 strings to search the library],
+  "search_terms": [array of 1-3 strings to search the library — ARTIST NAMES, SONG TITLES, or REAL GENRES like "punjabi", "lofi", "jazz". NEVER mood/vibe words like "calm", "rainy", "overcast" — those go in the "mood" field],
   "artist": string or null — the artist name if the listener named one (use the artist's common name, e.g. "Diljit Dosanjh"),
   "sort": one of "latest" | "oldest" | "popular" | null — set to "latest" for words like latest/new/newest/recent, "oldest" for old/classic, "popular" for popular/best/top. Otherwise null,
   "scope": one of "album" | "song" — what the listener wants. Default "song",
-  "mood": one of energetic|calm|reflective|celebratory|romantic|spiritual|focus|workout|driving|cooking|rainy|sunny|night|morning|evening|festival|cultural — or null,
+  "mood": one of energetic|calm|reflective|celebratory|romantic|spiritual|focus|workout|driving|cooking|rainy|sunny|night|morning|evening|festival|cultural — or null. ALWAYS set this for vibe/feeling requests (e.g. "overcast mood" → calm or reflective, "cosy" → calm, "pumped up" → energetic, "late night drive" → night+driving — pick the strongest single match),
   "intent": one short sentence describing what the listener wants,
   "ack": short on-air acknowledgment the DJ reads aloud, max 20 words, sounds like a real radio DJ — no "thank you for listening" or self-intros
 }
 
-Worked examples (your output must mirror this structure exactly — these use placeholder names, infer the real artist from the listener's request):
+Vibe-to-mood mapping (use these when the request describes a feeling, weather, or moment rather than naming an artist/song):
+- overcast, cloudy, grey day, drizzly → calm or reflective
+- rainy day, downpour → rainy + calm
+- sunny, golden hour → sunny
+- cosy, comfy, blanket, fireside → calm
+- late night, midnight, after hours → night
+- morning coffee, breakfast, sunrise → morning
+- evening, golden hour, sundown → evening
+- working out, gym, run → workout
+- focus, deep work, study → focus
+- driving, road trip, motorway → driving
+- party, celebrating, friends → celebratory
+- heartbreak, melancholy, longing → reflective
+- love, romance, slow dance → romantic
+- diwali, vaisakhi, holi → festival + cultural
+- shabad, kirtan, devotional → spiritual
 
-Listener request: "<artist> latest album"
+Worked examples (your output must mirror this structure exactly):
+
+"<artist> latest album"
 {"search_terms":["<artist>"],"artist":"<artist>","sort":"latest","scope":"album","mood":null,"intent":"Wants a track from the newest album.","ack":"Pulling their latest for you now."}
 
-Listener request: "<artist> latest song"
-{"search_terms":["<artist>"],"artist":"<artist>","sort":"latest","scope":"song","mood":null,"intent":"Wants the newest track.","ack":"Freshest one coming up."}
-
-Listener request: "old <artist> track"
+"old <artist> track"
 {"search_terms":["<artist>"],"artist":"<artist>","sort":"oldest","scope":"song","mood":null,"intent":"Wants an early track.","ack":"Going back in the catalogue for you."}
 
-Listener request: "something romantic"
-{"search_terms":["love"],"artist":null,"sort":null,"scope":"song","mood":"romantic","intent":"Wants a romantic track.","ack":"Slowing things down for you."}
+"something romantic"
+{"search_terms":[],"artist":null,"sort":null,"scope":"song","mood":"romantic","intent":"Wants a romantic track.","ack":"Slowing things down for you."}
 
-Listener request: "play <title> by <artist>"
+"overcast mood"
+{"search_terms":[],"artist":null,"sort":null,"scope":"song","mood":"calm","intent":"Wants something to match an overcast feel.","ack":"Something to sit under the grey with."}
+
+"rainy day"
+{"search_terms":[],"artist":null,"sort":null,"scope":"song","mood":"rainy","intent":"Wants weather-appropriate calm music.","ack":"Soundtrack for the rain, coming up."}
+
+"late-night driving"
+{"search_terms":[],"artist":null,"sort":null,"scope":"song","mood":"driving","intent":"Wants night-drive music.","ack":"Keep the road quiet — this one's for you."}
+
+"play <title> by <artist>"
 {"search_terms":["<title>","<artist>"],"artist":"<artist>","sort":null,"scope":"song","mood":null,"intent":"Wants a specific song by a specific artist.","ack":"Coming right up."}`;
 
-export async function matchRequest(userQuery, { listenerName = null } = {}) {
-  const userPrompt = listenerName
-    ? `Listener "${listenerName}" requests: ${userQuery}`
-    : `Anonymous request: ${userQuery}`;
+export async function matchRequest(userQuery, { listenerName = null, nowPlaying = null } = {}) {
+  const ctxLines = [];
+  if (nowPlaying?.title) {
+    ctxLines.push(`Currently playing: "${nowPlaying.title}"${nowPlaying.artist ? ` by ${nowPlaying.artist}` : ''}.`);
+  }
+  const userPrompt = [
+    listenerName ? `Listener "${listenerName}" requests:` : `Anonymous request:`,
+    userQuery,
+    ctxLines.length ? `\n[Context for resolving references like "similar", "more like this", "match this vibe":\n${ctxLines.join('\n')}]` : '',
+  ].filter(Boolean).join(' ');
 
   const text = await ollamaChat(
     [

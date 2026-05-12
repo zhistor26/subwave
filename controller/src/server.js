@@ -288,47 +288,109 @@ app.post('/request', async (req, res) => {
       });
     }
 
-    // 1. LLM matches intent
-    const matched = await ollama.matchRequest(text, { listenerName: requester });
+    // 1. LLM matches intent — pass current track so vibe queries can be
+    // interpreted against what's actually on-air ("match this energy",
+    // "something slower than this", etc.).
+    const currentTrack = queue.current?.track || null;
+    const matched = await ollama.matchRequest(text, {
+      listenerName: requester,
+      nowPlaying: currentTrack,
+    });
 
     const recentIds = queue.recentlyPlayedIds(25);
+    await library.load();
+
+    // Helper: pick a fresh random item from a pool, preferring non-recents.
+    const randomFresh = (pool) => {
+      if (!pool || pool.length === 0) return null;
+      const fresh = pool.filter(s => s?.id && !recentIds.has(s.id));
+      const choose = fresh.length > 0 ? fresh : pool;
+      return choose[Math.floor(Math.random() * choose.length)] || null;
+    };
+
     let pick = null;
+    let pickSource = null;
 
     // 2a. Smart artist + sort path — if the listener asked for "latest/oldest
     // album by X", resolve the artist's albums and pick from the right one.
-    if (matched.artist && (matched.sort || matched.scope === 'album')) {
+    if (!pick && matched.artist && (matched.sort || matched.scope === 'album')) {
       pick = await pickByArtistAndSort({
         artistName: matched.artist,
         sort: matched.sort,
         scope: matched.scope,
         recentIds,
       });
+      if (pick) pickSource = 'artist-sort';
     }
 
-    // 2b. Generic search path — search by terms, filter recents, random pick.
+    // 2b. Search by terms — only when the LLM gave us terms that look like
+    // real library values (artist/song/genre), not vibe words. The system
+    // prompt forbids vibe terms here, but defensively skip search if the
+    // only term equals the mood string.
     if (!pick) {
-      let candidates = [];
-      for (const term of matched.search_terms || []) {
-        const r = await subsonic.search(term, { songCount: 25 });
-        candidates = [...candidates, ...r];
-      }
-
-      const seen = new Set();
-      const unique = candidates.filter(s => {
-        if (seen.has(s.id)) return false;
-        seen.add(s.id);
+      const terms = (matched.search_terms || []).filter(t => {
+        if (!t || typeof t !== 'string') return false;
+        if (matched.mood && t.toLowerCase() === matched.mood.toLowerCase()) return false;
         return true;
       });
-
-      const fresh = unique.filter(s => !recentIds.has(s.id));
-      const pool = fresh.length > 0 ? fresh : unique;
-      pick = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
+      if (terms.length > 0) {
+        let candidates = [];
+        for (const term of terms) {
+          const r = await subsonic.search(term, { songCount: 25 });
+          candidates = [...candidates, ...r];
+        }
+        const seen = new Set();
+        const unique = candidates.filter(s => {
+          if (seen.has(s.id)) return false;
+          seen.add(s.id);
+          return true;
+        });
+        pick = randomFresh(unique);
+        if (pick) pickSource = 'search';
+      }
     }
 
-    // 2c. Mood fallback
+    // 2c. Mood-tagged library — the right vocabulary for vibe queries. The
+    // tagger writes moods like "calm", "rainy", "night" to state/moods.json;
+    // matchRequest's "mood" field uses the same vocabulary.
     if (!pick && matched.mood) {
-      const moodPool = await subsonic.getRandomSongs({ size: 10, genre: matched.mood });
-      pick = moodPool[Math.floor(Math.random() * moodPool.length)] || null;
+      const moodPool = library.songsByMood(matched.mood);
+      pick = randomFresh(moodPool);
+      if (pick) pickSource = `library-mood:${matched.mood}`;
+    }
+
+    // 2d. Similar-songs from the current track — when the listener's intent
+    // is vibe-adjacent and we have something playing, Subsonic can surface
+    // adjacency that wasn't captured in our local mood tags.
+    if (!pick && currentTrack?.id && (matched.mood || /similar|like|match/i.test(text))) {
+      try {
+        const similar = await subsonic.getSimilarSongs(currentTrack.id, { count: 20 });
+        pick = randomFresh(similar);
+        if (pick) pickSource = 'similar-to-current';
+      } catch {}
+    }
+
+    // 2e. Dominant-mood fallback — if the listener gave us nothing actionable
+    // but the station has a mood for the current moment (weather/time/festival),
+    // play something that fits the room rather than refusing.
+    if (!pick) {
+      try {
+        const ctxNow = await getFullContext();
+        if (ctxNow.dominantMood) {
+          const moodPool = library.songsByMood(ctxNow.dominantMood);
+          pick = randomFresh(moodPool);
+          if (pick) pickSource = `library-mood:${ctxNow.dominantMood}(context)`;
+        }
+      } catch {}
+    }
+
+    // 2f. Starred — operator's hand-picked favourites are always a safe pick.
+    if (!pick) {
+      try {
+        const starred = await subsonic.getStarred();
+        pick = randomFresh(starred);
+        if (pick) pickSource = 'starred';
+      } catch {}
     }
 
     if (!pick) {
@@ -338,6 +400,7 @@ app.post('/request', async (req, res) => {
         message: `Sorry ${requester}, nothing in the crates matched that.`,
       });
     }
+    queue.log('request', `resolved via ${pickSource}: ${pick.title} — ${pick.artist}`);
 
     // 3. Generate DJ intro that mentions the request
     const ctx = await getFullContext();
