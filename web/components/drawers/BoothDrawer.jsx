@@ -10,7 +10,7 @@ const FILTERS = [
 
 // Voice = anything the DJ actually speaks on-air.
 const VOICE_KINDS = new Set(['dj-speak', 'station-id', 'link', 'hourly-check', 'weather']);
-const DJ_KINDS = new Set([...VOICE_KINDS, 'ai-pick', 'request', 'playing', 'queued', 'miss']);
+const DJ_KINDS = new Set([...VOICE_KINDS, 'ai-pick', 'request', 'intent', 'playing', 'queued', 'miss']);
 
 function shortTime(t) {
   try {
@@ -25,6 +25,7 @@ function kindColor(kind) {
   switch (kind) {
     case 'playing': return 'var(--ink)';
     case 'request': return 'var(--accent)';
+    case 'intent':  return 'var(--ink)';
     case 'ai-pick':
     case 'queued':  return 'var(--muted)';
     case 'error':
@@ -152,6 +153,15 @@ function MetaLine({ kind, meta }) {
   if (meta.source && kind === 'playing') bits.push(`source: ${meta.source}`);
   if (typeof meta.queueDepth === 'number' && kind === 'queued') {
     bits.push(`depth ${meta.queueDepth}`);
+  }
+  if (kind === 'intent') {
+    if (meta.mood) bits.push(`mood: ${meta.mood}`);
+    if (meta.artist) bits.push(`artist: ${meta.artist}`);
+    if (meta.scope && meta.scope !== 'song') bits.push(`scope: ${meta.scope}`);
+    if (meta.sort) bits.push(`sort: ${meta.sort}`);
+    if (Array.isArray(meta.searchTerms) && meta.searchTerms.length) {
+      bits.push(`search: ${meta.searchTerms.join(', ')}`);
+    }
   }
   const reason = meta.reason;
   if (!bits.length && !reason) return null;

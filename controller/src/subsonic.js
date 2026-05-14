@@ -72,6 +72,31 @@ export async function getAlbumList(offset = 0, size = 500) {
   return r.albumList2?.album || [];
 }
 
+// Most-recently imported albums. Drives the "new in the crates" picker source.
+export async function getRecentlyAddedAlbums({ size = 20 } = {}) {
+  const r = await call('getAlbumList2', { type: 'newest', size });
+  return r.albumList2?.album || [];
+}
+
+// Albums sorted by play count — Navidrome's scrobble-backed "favourites".
+export async function getFrequentAlbums({ size = 20 } = {}) {
+  const r = await call('getAlbumList2', { type: 'frequent', size });
+  return r.albumList2?.album || [];
+}
+
+// Last.fm-backed artist info: bio, images, and (most usefully) similar artists.
+export async function getArtistInfo(id, { count = 10 } = {}) {
+  const r = await call('getArtistInfo2', { id, count });
+  return r.artistInfo2 || null;
+}
+
+// Last.fm "top songs" for an artist, intersected with what's in the library.
+// Note: keyed by artist NAME, not id.
+export async function getTopSongs(artistName, { count = 10 } = {}) {
+  const r = await call('getTopSongs', { artist: artistName, count });
+  return r.topSongs?.song || [];
+}
+
 export async function getAlbum(id) {
   const r = await call('getAlbum', { id });
   return r.album?.song || [];

@@ -300,6 +300,7 @@ app.post('/request', async (req, res) => {
         track: pick,
         context: ctx,
         requestedBy: requester,
+        requestText: text,
         recap: queue.getDjRecap(),
         recentTracks: queue.getRecentTracks(),
         recentOpeners: queue.getRecentOpeners(),
@@ -325,6 +326,13 @@ app.post('/request', async (req, res) => {
     const matched = await ollama.matchRequest(text, {
       listenerName: requester,
       nowPlaying: currentTrack,
+    });
+    queue.log('intent', `"${text}" → ${matched.intent || '(no intent)'}`, {
+      mood: matched.mood,
+      scope: matched.scope,
+      sort: matched.sort,
+      artist: matched.artist,
+      searchTerms: matched.search_terms,
     });
 
     const recentIds = queue.recentlyPlayedIds(25);
@@ -438,6 +446,7 @@ app.post('/request', async (req, res) => {
       track: pick,
       context: ctx,
       requestedBy: requester,
+      requestText: text,
       recap: queue.getDjRecap(),
       recentTracks: queue.getRecentTracks(),
       recentOpeners: queue.getRecentOpeners(),

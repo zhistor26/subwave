@@ -266,12 +266,17 @@ export async function matchRequest(userQuery, { listenerName = null, nowPlaying 
 // DJ SCRIPTS — creative spoken segments
 // ---------------------------------------------------------------------------
 
-export async function generateIntro({ track, context, requestedBy = null, recap = null, recentTracks = null, recentOpeners = null }) {
+export async function generateIntro({ track, context, requestedBy = null, requestText = null, recap = null, recentTracks = null, recentOpeners = null }) {
   const ctxLines = buildContextLines(context, { recentTracks });
   if (requestedBy) ctxLines.push(`Requested by: ${requestedBy}`);
+  if (requestText) {
+    // Clip and sanitise so a long request can't dominate the prompt or break formatting.
+    const clipped = String(requestText).replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (clipped) ctxLines.push(`Listener asked: "${clipped}"`);
+  }
   ctxLines.push(`Coming up: "${track.title}" by ${track.artist}${track.album ? ` from ${track.album}` : ''}${track.year ? ` (${track.year})` : ''}`);
 
-  const prompt = `Write a brief intro for this track.\n\n${ctxLines.join('\n')}`;
+  const prompt = `Write a brief intro for this track. If the listener said something specific, acknowledge their words naturally — don't quote them verbatim, but weave the gist in. Never read the request out loud as-is.\n\n${ctxLines.join('\n')}`;
 
   return ollamaChat(
     [

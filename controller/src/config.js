@@ -48,7 +48,7 @@ export const config = {
   },
   show: {
     // Define show clocks — what % of slots are music vs jingles vs DJ talk
-    autoQueueRefreshMinutes: 10,
+    autoQueueRefreshMinutes: parseInt(process.env.AUTO_QUEUE_REFRESH_MINUTES || '60', 10),
     djSegmentEveryMinutes: 20,
     weatherUpdateEveryMinutes: 60,
   },

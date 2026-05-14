@@ -38,11 +38,26 @@ function shouldFire(kind, now = new Date()) {
 }
 
 const TARGET_POOL = 30;
-const MOOD_WEIGHT = 15;       // up to this many mood-tagged tracks per pool
-const STARRED_WEIGHT = 8;     // up to this many starred tracks per pool
+const MOOD_WEIGHT = 12;          // up to this many mood-tagged tracks per pool
+const PLAYLIST_WEIGHT = 6;       // mood-matched Navidrome playlists
+const RECENT_WEIGHT = 4;         // recently-added albums
+const FREQUENT_WEIGHT = 4;       // frequent / scrobble-favourite albums
+const STARRED_WEIGHT = 6;        // hand-starred tracks
 
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
+}
+
+async function tracksFromAlbums(albums, perAlbum, max) {
+  const out = [];
+  for (const a of albums) {
+    if (out.length >= max) break;
+    try {
+      const songs = await subsonic.getAlbum(a.id);
+      out.push(...shuffle(songs).slice(0, perAlbum));
+    } catch {}
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,57 +71,84 @@ async function refreshAutoPlaylist() {
   const recent = queue.recentlyPlayedIds(25);
 
   const pool = [];
-  const fromSource = { mood: 0, starred: 0, random: 0 };
+  const fromSource = { mood: 0, playlist: 0, recent: 0, frequent: 0, starred: 0, random: 0 };
+  const take = (label, items, cap) => {
+    let n = 0;
+    for (const t of items) {
+      if (n >= cap || pool.length >= TARGET_POOL) break;
+      if (!t?.id || recent.has(t.id) || pool.find(p => p.id === t.id)) continue;
+      pool.push({ ...t, _source: label });
+      fromSource[label]++;
+      n++;
+    }
+  };
 
-  // 1. Mood-tagged tracks from the LLM-built library (only if tagger has run)
+  // 1. Mood-tagged from the LLM-built library (only if tagger has run).
   await library.load();
   if (mood) {
-    const moodHits = shuffle(library.songsByMood(mood)).filter(t => !recent.has(t.id));
-    for (const t of moodHits.slice(0, MOOD_WEIGHT)) {
-      pool.push({ ...t, _source: 'mood' });
-      fromSource.mood++;
+    take('mood', shuffle(library.songsByMood(mood)), MOOD_WEIGHT);
+  }
+
+  // 2. Navidrome playlists whose name matches the mood — operator's hand curation.
+  if (mood) {
+    try {
+      const playlists = await subsonic.getPlaylists();
+      const matched = playlists.filter(p => p.name?.toLowerCase().includes(mood.toLowerCase()));
+      const tracks = [];
+      for (const pl of matched.slice(0, 2)) {
+        try {
+          const songs = await subsonic.getPlaylist(pl.id);
+          tracks.push(...songs);
+        } catch {}
+      }
+      take('playlist', shuffle(tracks), PLAYLIST_WEIGHT);
+    } catch (err) {
+      queue.log('error', `Playlist fetch failed: ${err.message}`);
     }
   }
 
-  // 2. Starred tracks — leverages what you've curated by hand
+  // 3. Recently-added albums — surfaces new music without any tagging.
   try {
-    const starred = shuffle(await subsonic.getStarred()).filter(s => !recent.has(s.id));
-    for (const s of starred.slice(0, STARRED_WEIGHT)) {
-      pool.push({ ...s, _source: 'starred' });
-      fromSource.starred++;
-    }
+    const recentAlbums = await subsonic.getRecentlyAddedAlbums({ size: 8 });
+    const tracks = await tracksFromAlbums(shuffle(recentAlbums).slice(0, 4), 2, RECENT_WEIGHT * 2);
+    take('recent', tracks, RECENT_WEIGHT);
+  } catch (err) {
+    queue.log('error', `Recent-albums fetch failed: ${err.message}`);
+  }
+
+  // 4. Frequent albums — Navidrome's scrobble-backed favourites.
+  try {
+    const freqAlbums = await subsonic.getFrequentAlbums({ size: 8 });
+    const tracks = await tracksFromAlbums(shuffle(freqAlbums).slice(0, 4), 2, FREQUENT_WEIGHT * 2);
+    take('frequent', tracks, FREQUENT_WEIGHT);
+  } catch (err) {
+    queue.log('error', `Frequent-albums fetch failed: ${err.message}`);
+  }
+
+  // 5. Starred — hand-curated.
+  try {
+    const starred = shuffle(await subsonic.getStarred());
+    take('starred', starred, STARRED_WEIGHT);
   } catch (err) {
     queue.log('error', `Starred fetch failed: ${err.message}`);
   }
 
-  // 3. Top up to TARGET_POOL with random
+  // 6. Top up with random to TARGET_POOL.
   if (pool.length < TARGET_POOL) {
     try {
-      const random = (await subsonic.getRandomSongs({ size: TARGET_POOL })).filter(s => !recent.has(s.id));
-      for (const s of random) {
-        if (pool.length >= TARGET_POOL) break;
-        if (pool.find(p => p.id === s.id)) continue;
-        pool.push({ ...s, _source: 'random' });
-        fromSource.random++;
-      }
+      const random = await subsonic.getRandomSongs({ size: TARGET_POOL });
+      take('random', random, TARGET_POOL);
     } catch (err) {
       queue.log('error', `Random fetch failed: ${err.message}`);
     }
   }
 
-  // De-dup just in case
-  const seen = new Set();
-  const unique = pool.filter(t => {
-    if (!t.id || seen.has(t.id)) return false;
-    seen.add(t.id);
-    return true;
-  });
-
-  const lines = ['#EXTM3U', ...unique.map(t => subsonic.getAnnotatedUri(t))];
+  const lines = ['#EXTM3U', ...pool.map(t => subsonic.getAnnotatedUri(t))];
   await writeFile(config.liquidsoap.autoPlaylist, lines.join('\n'));
   queue.log('scheduler',
-    `Auto-playlist refreshed: ${unique.length} tracks ` +
-    `(mood=${fromSource.mood} starred=${fromSource.starred} random=${fromSource.random}, mood=${mood || 'none'})`);
+    `Auto-playlist refreshed: ${pool.length} tracks (` +
+    Object.entries(fromSource).filter(([, v]) => v > 0).map(([k, v]) => `${k}=${v}`).join(' ') +
+    `, mood=${mood || 'none'})`);
 }
 
 // ---------------------------------------------------------------------------
