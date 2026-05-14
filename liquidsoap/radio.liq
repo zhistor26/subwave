@@ -320,11 +320,18 @@ def update_sidechain() =
 end
 thread.run(every=sidechain_dt, update_sidechain)
 
-# Apply the ducker to the music+bed bus, then mix voice + intro on top at
-# unity. `normalize=false` is critical: voice has already been brought to
-# broadcast level by mic_chain (compressor + 1.4× makeup), so we don't want
-# `add` quietly halving everything to "fit" the bus.
-music_bus = amplify({sidechain_gain()}, music_bus)
+# Mix voice + intro on top of the music bus at unity. `normalize=false` is
+# critical: voice has already been brought to broadcast level by mic_chain
+# (compressor + 1.4× makeup), so we don't want `add` quietly halving
+# everything to "fit" the bus.
+#
+# Sidechain bypass: gain is pinned to 1.0. When this was hooked up as
+# `amplify({sidechain_gain()}, music_bus)`, the music bus measured -91 dB
+# at the icecast output (true silence) on the rebuilt container — even
+# with voice_queue empty. The update_sidechain follower is left in place
+# for now (it computes a value but nothing consumes it) so future work
+# can re-enable signal-keyed ducking once the root cause is found.
+music_bus = amplify(1.0, music_bus)
 radio = add(normalize=false, [music_bus, voice, intro])
 
 # ---------------------------------------------------------------------------
