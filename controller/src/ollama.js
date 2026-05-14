@@ -6,17 +6,14 @@ import { config } from './config.js';
 import * as settings from './settings.js';
 
 // Random micro-persona per call so the DJ shifts register across segments.
-// Always includes the user-configured dj.soul so custom personas stay in
-// rotation. Picks a fresh one every call — the named DJ stays constant,
-// only their tone for this line wobbles.
+// The rotation pool is exactly the souls list in Settings — edit it there to
+// add, remove, or pin a single persona. If the list is somehow empty, falls
+// back to the built-in defaults so a generation never crashes.
 function djSystem() {
   const s = settings.get();
-  const pool = [];
-  const userSoul = (s.dj?.soul || '').trim();
-  if (userSoul) pool.push(userSoul);
-  for (const soul of settings.DJ_SOULS) {
-    if (soul !== userSoul) pool.push(soul);
-  }
+  const pool = (Array.isArray(s.dj?.souls) && s.dj.souls.length > 0)
+    ? s.dj.souls
+    : settings.DJ_SOULS;
   const soul = pool[Math.floor(Math.random() * pool.length)];
   return settings.renderDjPrompt({ ...s.dj, soul }, {
     station: 'SUB/WAVE',

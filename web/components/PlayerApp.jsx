@@ -10,7 +10,6 @@ import TransportBar from './TransportBar';
 import DotRail from './DotRail';
 import { Sheet } from './ui/sheet';
 import { Toaster } from './ui/toaster';
-import SettingsDialog from './SettingsDialog';
 import QueueDrawer from './drawers/QueueDrawer';
 import HistoryDrawer from './drawers/HistoryDrawer';
 import BoothDrawer from './drawers/BoothDrawer';
@@ -41,7 +40,6 @@ export default function PlayerApp({ contained = false }) {
   const [requesterName, setRequesterName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawer, setDrawer] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [tickerOn, setTickerOn] = useState(true);
   const [theme, setTheme] = useState('light');
 
@@ -107,7 +105,6 @@ export default function PlayerApp({ contained = false }) {
         context={context}
         djName={dj?.name}
         listeners={listeners}
-        onOpenSettings={() => setSettingsOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -158,8 +155,6 @@ export default function PlayerApp({ contained = false }) {
           />
         )}
       </Sheet>
-
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} container={portalNode} />
 
       {!contained && <Toaster />}
     </div>

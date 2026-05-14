@@ -1,6 +1,6 @@
 'use client';
 
-import { Settings, Sun, Moon, Headphones } from 'lucide-react';
+import { Sun, Moon, Headphones } from 'lucide-react';
 
 // Compact, mood-flavored subtitle for the header: festival > show + vibe + weather.
 // Examples: "late · late hours · 6° clear" · "diwali · festival · 18° clear".
@@ -27,7 +27,7 @@ function buildTagline(context) {
   return parts.length ? parts.join(' · ') : null;
 }
 
-export default function TopBar({ tunedIn, context, djName, listeners, onOpenSettings, theme, onToggleTheme }) {
+export default function TopBar({ tunedIn, context, djName, listeners, theme, onToggleTheme }) {
   const tagline = buildTagline(context);
   return (
     <div
@@ -92,14 +92,6 @@ export default function TopBar({ tunedIn, context, djName, listeners, onOpenSett
               : <Moon className="w-3.5 h-3.5" />}
           </button>
         )}
-        <button
-          onClick={onOpenSettings}
-          className="v3-focus cursor-pointer hidden sm:inline-flex items-center"
-          style={{ color: 'var(--ink)' }}
-          aria-label="Settings"
-        >
-          <Settings className="w-3.5 h-3.5" />
-        </button>
       </div>
     </div>
   );

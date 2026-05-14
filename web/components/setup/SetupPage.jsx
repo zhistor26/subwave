@@ -417,7 +417,7 @@ docker compose -f docker/docker-compose.prod.yml up -d --build controller web
             </li>
             <li>
               <strong>Built-in diagnostics</strong> —
-              open <Link href="/debug" className="bs-link">/debug</Link> for a live snapshot
+              open <Link href="/admin/debug" className="bs-link">/admin/debug</Link> for a live snapshot
               of every state file, recent Ollama calls, Icecast status, and the most recent
               100 lines of Liquidsoap.
             </li>

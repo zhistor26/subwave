@@ -22,10 +22,11 @@ Hard rules:
 - Reference the actual context (time, weather, what's coming) naturally.
 - Vary your opener and shape every time — never start the same way twice in a row, never use the same metaphor or framing as your last few lines.`;
 
-// Rotating micro-personas — picked at random per LLM call by ollama.djSystem()
-// so the DJ shifts register across segments without losing the named identity.
-// The settings.dj.soul value is always included as the first entry so custom
-// user-set personas still get used.
+// Default rotating micro-personas — seeded into settings.dj.souls on first
+// run. ollama.djSystem() picks one at random per LLM call so the DJ shifts
+// register across segments without losing the named identity. The user can
+// add/remove/edit entries in the Settings UI; only the souls in their list
+// are used at runtime.
 export const DJ_SOULS = [
   'warm, slightly understated, never corny — late-night BBC 6 Music presenter; observant, dry humour, specific',
   'thoughtful and a little wistful; finds small details in tracks and rooms; favours one well-chosen image over a list',
@@ -42,11 +43,31 @@ const DEFAULTS = {
   weather: { lat: 52.5862, lng: -2.1288, locationName: 'Wolverhampton' },
   dj: {
     name: 'Frequency',
-    soul: 'warm, slightly understated, never corny — late-night BBC 6 Music presenter; observant, dry humour, specific',
+    souls: [...DJ_SOULS],
     systemPrompt: DEFAULT_DJ_PROMPT_TEMPLATE,
     frequency: 'moderate',
   },
 };
+
+const SOULS_LIMIT = 10;
+const SOUL_MIN = 1;
+const SOUL_MAX = 400;
+
+function normalizeSouls(raw) {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const v = item.trim();
+    if (v.length < SOUL_MIN || v.length > SOUL_MAX) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= SOULS_LIMIT) break;
+  }
+  return out;
+}
 
 const BOUNDS = {
   jingleRatio:        { min: 1, max: 1000, type: 'int' },
@@ -71,7 +92,15 @@ export async function load() {
     },
     dj: {
       name: stored.dj?.name ?? DEFAULTS.dj.name,
-      soul: stored.dj?.soul ?? DEFAULTS.dj.soul,
+      souls: (() => {
+        const normalized = normalizeSouls(stored.dj?.souls);
+        if (normalized && normalized.length) return normalized;
+        // Migrate legacy single-soul field, falling back to defaults.
+        if (typeof stored.dj?.soul === 'string' && stored.dj.soul.trim()) {
+          return [stored.dj.soul.trim().slice(0, SOUL_MAX)];
+        }
+        return [...DEFAULTS.dj.souls];
+      })(),
       systemPrompt: stored.dj?.systemPrompt ?? DEFAULTS.dj.systemPrompt,
       frequency: FREQUENCIES.includes(stored.dj?.frequency) ? stored.dj.frequency : DEFAULTS.dj.frequency,
     },
@@ -130,10 +159,13 @@ export async function update(patch) {
       if (v.length < 1 || v.length > 40) throw new Error('dj.name must be 1-40 chars');
       next.dj.name = v;
     }
-    if (d.soul !== undefined) {
-      const v = String(d.soul).trim();
-      if (v.length < 1 || v.length > 400) throw new Error('dj.soul must be 1-400 chars');
-      next.dj.soul = v;
+    if (d.souls !== undefined) {
+      if (!Array.isArray(d.souls)) throw new Error('dj.souls must be an array of strings');
+      const normalized = normalizeSouls(d.souls);
+      if (!normalized || normalized.length === 0) {
+        throw new Error(`dj.souls must contain 1-${SOULS_LIMIT} non-empty strings, each ${SOUL_MIN}-${SOUL_MAX} chars`);
+      }
+      next.dj.souls = normalized;
     }
     if (d.systemPrompt !== undefined) {
       const v = String(d.systemPrompt).trim();
@@ -163,9 +195,10 @@ export async function update(patch) {
 export function renderDjPrompt(dj, ctx = {}) {
   const station = ctx.station || 'SUB/WAVE';
   const location = ctx.location || (cache?.weather?.locationName ?? DEFAULTS.weather.locationName);
+  const soul = dj?.soul || dj?.souls?.[0] || DEFAULTS.dj.souls[0];
   return (dj?.systemPrompt || DEFAULT_DJ_PROMPT_TEMPLATE)
     .replaceAll('{name}', dj?.name || DEFAULTS.dj.name)
-    .replaceAll('{soul}', dj?.soul || DEFAULTS.dj.soul)
+    .replaceAll('{soul}', soul)
     .replaceAll('{station}', station)
     .replaceAll('{location}', location);
 }
