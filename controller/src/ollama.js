@@ -349,10 +349,12 @@ export async function pickNextTrack({ candidates, recentPlays, context }) {
 
   try {
     return JSON.parse(text);
-  } catch {
+  } catch (firstErr) {
     const m = text.match(/\{[\s\S]*\}/);
-    if (m) return JSON.parse(m[0]);
-    throw new Error(`picker response not JSON: ${text.slice(0, 200)}`);
+    if (m) {
+      try { return JSON.parse(m[0]); } catch { /* fall through to descriptive throw */ }
+    }
+    throw new Error(`picker response not JSON (${firstErr.message}): ${text.slice(0, 200)}`);
   }
 }
 
