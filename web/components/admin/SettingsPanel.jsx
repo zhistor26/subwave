@@ -36,7 +36,7 @@ const TTS_KIND_HINT = {
 };
 
 export default function SettingsPanel() {
-  const { adminFetch, needsAuth } = useAdminAuth();
+  const { adminFetch, needsAuth, hydrated } = useAdminAuth();
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -99,12 +99,14 @@ export default function SettingsPanel() {
   }, [data, form]);
 
   useEffect(() => {
-    if (needsAuth) return;
+    // Wait for the auth token to hydrate from localStorage — fetching before
+    // then sends an unauthenticated request that 401s.
+    if (!hydrated || needsAuth) return;
     refresh();
     const id = setInterval(refresh, 3000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsAuth]);
+  }, [hydrated, needsAuth]);
 
   const saveSettings = async (patch) => {
     setBusy(true); setSaveMsg(null);

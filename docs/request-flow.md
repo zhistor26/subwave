@@ -12,10 +12,10 @@ pipeline (auto-DJ picks, scheduled idents, crossfading), see
 ## The short version
 
 ```
-Browser  ──HTTP POST──▶  Caddy  ──▶  Controller  ──Ollama──▶  intent
+Browser  ──HTTP POST──▶  Caddy  ──▶  Controller  ──LLM──▶  intent
                                           │
                                           ├─ Subsonic / mood library ─▶ a track
-                                          ├─ Ollama ─▶ a spoken intro script
+                                          ├─ LLM ─▶ a spoken intro script
                                           │
                                           ▼
                               queue.push() → drainToLiquidsoap()
@@ -77,7 +77,7 @@ The UI then awaits the JSON response and renders either a `SuccessCard`
 
 ## Stage 3 — Controller: `POST /request` handler
 
-**File: `controller/src/server.js`** (`app.post('/request', …)`)
+**File: `controller/src/routes/request.js`** (`router.post('/request', …)`)
 
 ### 3.0 — Validate and rate-limit
 
@@ -95,12 +95,17 @@ If `text` matches `/^more like this$/i`, the LLM is skipped entirely. The
 controller takes the current/last track's **artist** and calls
 `pickByArtistAndSort()` to grab another song by that artist. Jump to stage 3.4.
 
-### 3.2 — Ollama parses intent
+### 3.2 — The LLM parses intent
 
 **File: `controller/src/llm/dj.js`** — `matchRequest(text, { listenerName, nowPlaying })`
 
-The raw listener text + the currently-playing track go to Ollama with
-`format: 'json'` and a strict schema. Ollama returns:
+The raw listener text + the currently-playing track go through the Vercel AI
+SDK: `matchRequest` calls `djObject` (`controller/src/llm/sdk.js`), which runs
+the model and validates its reply against a Zod schema — there is no manual
+JSON parsing or regex recovery. The active provider is whatever `settings.llm`
+selects, resolved by `controller/src/llm/provider.js`: Ollama by default
+(homelab, no key), with Anthropic / OpenAI / the Vercel AI Gateway as opt-in
+alternatives switchable from the admin Settings UI. The schema returns:
 
 ```js
 {
@@ -124,12 +129,12 @@ hit. `recentIds` (last 25 played) is used everywhere to prefer fresh songs.
 
 | Order | Source | When | File |
 |---|---|---|---|
-| 2a | `pickByArtistAndSort()` | `artist` + (`sort` or `scope:album`) present | `server.js` + `subsonic.js` |
-| 2b | `subsonic.search(term)` per term | `search_terms` look like real library values | `controller/src/subsonic.js` |
-| 2c | `library.songsByMood(mood)` | LLM gave a `mood` | `controller/src/library.js` (`state/moods.json`) |
-| 2d | `subsonic.getSimilarSongs(currentTrack.id)` | vibe-ish + something is playing | `subsonic.js` |
+| 2a | `pickByArtistAndSort()` | `artist` + (`sort` or `scope:album`) present | `routes/request.js` + `music/subsonic.js` |
+| 2b | `subsonic.search(term)` per term | `search_terms` look like real library values | `controller/src/music/subsonic.js` |
+| 2c | `library.songsByMood(mood)` | LLM gave a `mood` | `controller/src/music/library.js` (`state/moods.json`) |
+| 2d | `subsonic.getSimilarSongs(currentTrack.id)` | vibe-ish + something is playing | `music/subsonic.js` |
 | 2e | `library.songsByMood(dominantMood)` | nothing matched, but the room has a mood (`getFullContext()`) | `controller/src/context.js` |
-| 2f | `subsonic.getStarred()` | last-ditch — operator favourites | `subsonic.js` |
+| 2f | `subsonic.getStarred()` | last-ditch — operator favourites | `music/subsonic.js` |
 
 If **every** source comes up empty:
 
@@ -182,7 +187,7 @@ This returns **immediately** — the song has not aired yet, it's just queued.
 
 ## Stage 4 — Queue → Liquidsoap (file-based IPC)
 
-**File: `controller/src/queue.js`**
+**File: `controller/src/broadcast/queue.js`**
 
 `push()` appends an item `{ track, requestedBy, intent, introScript, sent:false }`
 to `this.upcoming`, then fires `drainToLiquidsoap()` (fire-and-forget).
@@ -190,7 +195,7 @@ to `this.upcoming`, then fires `drainToLiquidsoap()` (fire-and-forget).
 `drainToLiquidsoap()` walks unsent items and, for each:
 
 1. **If `introScript` is set** — render it to a WAV via `tts.speak(script, { kind:'dj-speak' })`
-   (`controller/src/tts.js` → Piper or Kokoro), then:
+   (`controller/src/audio/tts.js` → Piper or Kokoro), then:
    ```
    write  config.liquidsoap.sayFile   →  /var/sub-wave/say.txt   (the WAV path)
    sleep 250 ms
@@ -244,9 +249,9 @@ any other track does.
 |---|---|---|
 | Browser → Caddy | HTTP `POST /api/request` | `{ text, name }` |
 | Caddy → Controller | HTTP `POST /request` (prefix stripped) | `{ text, name }` |
-| Controller → Ollama (match) | local HTTP, `format:json` | listener `text` + current track → `{ search_terms, mood, intent, ack, artist, scope, sort }` |
+| Controller → LLM (match) | AI SDK `djObject`, Zod-validated | listener `text` + current track → `{ search_terms, mood, intent, ack, artist, scope, sort }` |
 | Controller → Navidrome | Subsonic API (salt+token auth) | search terms / artist / IDs → song objects |
-| Controller → Ollama (intro) | local HTTP, free-text | `{ track, context, requestedBy, requestText, recap, … }` → `introScript` |
+| Controller → LLM (intro) | AI SDK `djText`, free-text | `{ track, context, requestedBy, requestText, recap, … }` → `introScript` |
 | Controller → Browser | HTTP response | `{ success, ack, track:{title,artist}, queuePosition }` |
 | Controller → Liquidsoap | `say.txt` file | absolute path to intro WAV |
 | Controller → Liquidsoap | `next.txt` file | `annotate:…:subhttp:…` track URI |
@@ -266,13 +271,16 @@ any other track does.
 - `docker/Caddyfile` — `/api/*` → controller
 
 **Controller**
-- `controller/src/server.js` — `POST /request` handler, rate limiting
-- `controller/src/llm/dj.js` — `matchRequest()`, `generateIntro()`
-- `controller/src/subsonic.js` — `search`, `getSimilarSongs`, `getStarred`, `getAnnotatedUri`
-- `controller/src/library.js` — `songsByMood()` over `state/moods.json`
+- `controller/src/routes/request.js` — `POST /request` handler, `pickByArtistAndSort()`
+- `controller/src/middleware/ratelimit.js` — per-IP cooldown + burst window
+- `controller/src/llm/dj.js` — `matchRequest()`, `generateIntro()` (DJ prompt layer)
+- `controller/src/llm/sdk.js` — `djObject` / `djText`, the AI SDK call primitives
+- `controller/src/llm/provider.js` — provider registry (Ollama / Anthropic / OpenAI / Gateway)
+- `controller/src/music/subsonic.js` — `search`, `getSimilarSongs`, `getStarred`, `getAnnotatedUri`
+- `controller/src/music/library.js` — `songsByMood()` over `state/moods.json`
 - `controller/src/context.js` — `getFullContext()` (time / weather / festival / dominant mood)
-- `controller/src/queue.js` — `push()`, `drainToLiquidsoap()`
-- `controller/src/tts.js` — `speak()` → Piper / Kokoro
+- `controller/src/broadcast/queue.js` — `push()`, `drainToLiquidsoap()`
+- `controller/src/audio/tts.js` — `speak()` → Piper / Kokoro
 
 **Mixer**
 - `liquidsoap/radio.liq` — polls `say.txt` / `next.txt`, mixes, broadcasts

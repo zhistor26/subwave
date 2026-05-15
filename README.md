@@ -24,8 +24,8 @@ A real internet radio station. Single Icecast stream — every listener hears th
                     │  • mic chain: compress → echo on TTS    │
                     │  • on_metadata → now-playing.json       │
                     │  • auto.m3u + emergency.mp3 fallback    │
-                    │  • normalize -14 LUFS, stereo widen,    │
-                    │    bus comp + brick-wall limit          │
+                    │  • brick-wall limiter only (−1 dBFS) —  │
+                    │    masters otherwise pass untouched     │
                     │  • hourly archive output                │
                     └────────────────────▲────────────────────┘
                                          │ writes URIs + WAV paths
@@ -34,8 +34,8 @@ A real internet radio station. Single Icecast stream — every listener hears th
                     │  • Express API (admin gate optional in  │
                     │    dev, mandatory in production)        │
                     │  • now-playing watcher (1.5s)           │
-                    │  • Ollama: request match, DJ scripts,   │
-                    │    library mood tagging, LLM picker     │
+                    │  • LLM via AI SDK: request match, DJ    │
+                    │    scripts, mood tagging, track picker  │
                     │  • TTS dispatcher (Piper + Kokoro) with │
                     │    per-kind engine override + fallback  │
                     │  • Scheduler: auto.m3u, time/weather/   │
@@ -46,7 +46,7 @@ A real internet radio station. Single Icecast stream — every listener hears th
                     └─┬──────────┬──────────┬──────────────┬──┘
                       │          │          │              │
                   ┌───▼───┐  ┌───▼────┐ ┌───▼────────┐  ┌──▼──────────┐
-                  │Ollama │  │Navidrm │ │Piper+Kokoro│  │ Open-Meteo  │
+                  │  LLM  │  │Navidrm │ │Piper+Kokoro│  │ Open-Meteo  │
                   │       │  │Subsonic│ │   TTS      │  │  (weather)  │
                   └───────┘  └────────┘ └────────────┘  └─────────────┘
 
@@ -79,7 +79,7 @@ Real radio = one stream, synced listeners. That needs a server-side audio mixer.
 ## What runs where
 
 - **Icecast / Liquidsoap / Controller / Web / Caddy** — Docker Compose stack. Defaults assume `host.docker.internal` for the local Ollama.
-- **Ollama** — runs on the host (or any reachable host). Default model is `qwen2.5:7b`; swap to anything that supports the `format: json` chat option (`nemotron-3-super:cloud`, `llama3.1:8b`, …).
+- **LLM** — every model call goes through the Vercel AI SDK, so the provider is swappable from the admin Settings UI: Ollama (homelab default, no key), Anthropic, OpenAI, or the Vercel AI Gateway. Ollama runs on the host or any reachable host; default model `qwen2.5:7b`. Cloud API keys are read from the standard env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`) — see `controller/.env.example`.
 - **Navidrome** — anywhere reachable. Controller talks Subsonic API.
 - **Piper** — baked into the controller image, CPU-only. Default voice: `en_GB-alan-medium`.
 - **Kokoro** — also baked into the controller image. Slower (~300–800 ms/line on CPU) but much more natural. British voice subset surfaced in Settings; default `bf_isabella`.
@@ -352,9 +352,9 @@ Candidate pool (mixed and capped at 18, then de-duped):
 
 Recently-played track IDs (last 25) are filtered out everywhere. Expensive lookups (playlists, recent/frequent albums, similar-artist) are memoised for 30 min so the per-pick load stays in single digits.
 
-The LLM gets the last 8 plays (title, artist, moods, energy), the current context, and the candidate pool, and returns `{ id, reason }`. The reason and the candidate source label are both logged and visible on `/admin/debug`.
+The LLM gets the last 8 plays (title, artist, moods, energy), the current context, and the candidate pool, and returns `{ id, reason }`. The reason and the candidate source label are both logged and visible on `/admin/debug`. An opt-in **agent path** (`settings.llm.pickerAgent`) instead hands the LLM the music-discovery tools in `llm/tools.js` and lets it search the library itself, falling back to the pool path on any failure.
 
-If Ollama is down or returns garbage, the controller logs the error and does nothing — Liquidsoap falls back to `auto.m3u` (refreshed every 60 min by default from the same broad source mix) so audio never stops.
+If the LLM is down or returns garbage, the controller logs the error and does nothing — Liquidsoap falls back to `auto.m3u` (refreshed every 60 min by default from the same broad source mix) so audio never stops.
 
 Toggle the LLM picker:
 
@@ -389,7 +389,7 @@ curl -X POST http://localhost:7701/request \
   -d '{"text": "something for late-night driving", "name": "klair"}'
 ```
 
-Flow: Ollama parses intent → resolves it across several pick strategies (artist+sort like "latest album by X", search-term match, mood library, similar-to-current, dominant-mood, starred) → generates a contextual DJ intro that can weave the listener's own words into the announcement → TTS renders the intro WAV → both pushed to Liquidsoap. The intro plays through the heavy-duck `voice_queue` so the music drops well underneath.
+Flow: the LLM parses intent → resolves it across several pick strategies (artist+sort like "latest album by X", search-term match, mood library, similar-to-current, dominant-mood, starred) → generates a contextual DJ intro that can weave the listener's own words into the announcement → TTS renders the intro WAV → both pushed to Liquidsoap. The intro plays through the heavy-duck `voice_queue` so the music drops well underneath.
 
 Special cases handled directly: `more like this` plays another track by the current artist; rate-limiting returns a friendly 429 with `Retry-After`.
 

@@ -5,7 +5,7 @@ import { fmtSize } from '../../lib/format';
 import { useAdminAuth } from '../../lib/adminAuth';
 
 export default function DebugPanel() {
-  const { adminFetch, needsAuth } = useAdminAuth();
+  const { adminFetch, needsAuth, hydrated } = useAdminAuth();
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [paused, setPaused] = useState(false);
@@ -13,7 +13,9 @@ export default function DebugPanel() {
   const logRef = useRef(null);
 
   useEffect(() => {
-    if (needsAuth) return;
+    // Wait for the auth token to hydrate from localStorage — fetching before
+    // then sends an unauthenticated request that 401s.
+    if (!hydrated || needsAuth) return;
     let cancelled = false;
     const tick = async () => {
       if (paused) return;
@@ -44,7 +46,7 @@ export default function DebugPanel() {
     const id = setInterval(tick, 2000);
     return () => { cancelled = true; clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paused, needsAuth]);
+  }, [paused, needsAuth, hydrated]);
 
   useEffect(() => {
     if (autoScroll && logRef.current) {
