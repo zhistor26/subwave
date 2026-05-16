@@ -399,13 +399,21 @@ music_meta.on_metadata(on_meta)
 # OUTPUT — broadcast to Icecast
 # ---------------------------------------------------------------------------
 
-# id="stream" makes Liquidsoap auto-register the telnet commands
-# stream.start / stream.stop / stream.status — the controller drives these
-# to take the station off air (disconnects the mount) without killing the
-# process. State is not persisted: a restart brings the output back on air.
+# on_air toggle — the controller flips this over telnet with
+# `var.set on_air = true|false` (and reads it with `var.get on_air`).
+# When false, the switch below has no matching case, so it becomes an
+# UNAVAILABLE source; feeding that into a fallible Icecast output makes the
+# output disconnect the /stream.mp3 mount — the station goes off air while
+# the mixer process keeps running. Outputs don't expose start/stop telnet
+# commands in this Liquidsoap build, so this is the way to control it live.
+# State is not persisted: a mixer restart brings the output back on air.
+on_air = interactive.bool("on_air", true)
+broadcast = switch(track_sensitive=false, [({on_air()}, radio)])
+
 output.icecast(
   %mp3(bitrate=192, samplerate=44100, stereo=true),
   id="stream",
+  fallible=true,
   host="icecast",
   port=7702,
   password=environment.get("ICECAST_SOURCE_PASSWORD"),
@@ -414,7 +422,7 @@ output.icecast(
   description="Personal frequency from the homelab",
   genre="Various",
   url="http://localhost:7700",
-  radio
+  broadcast
 )
 
 # Optional: also output to local file for archiving / podcast generation

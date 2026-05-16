@@ -52,21 +52,21 @@ export async function skipTrack() {
   return sendCommand('skip', 2000);
 }
 
-// Start / stop / query the Icecast output. radio.liq gives output.icecast
-// id="stream", so Liquidsoap auto-registers these telnet commands. Stopping
-// the output disconnects the /stream.mp3 mount — the station goes off air
-// while the mixer process keeps running. Reversible via startStream().
+// Start / stop / query the broadcast. radio.liq exposes an interactive bool
+// `on_air`; flipping it false makes the switch feeding the fallible Icecast
+// output go unavailable, which disconnects the /stream.mp3 mount — the
+// station goes off air while the mixer process keeps running.
 export async function startStream() {
-  return sendCommand('stream.start', 2000);
+  return sendCommand('var.set on_air = true', 2000);
 }
 
 export async function stopStream() {
-  return sendCommand('stream.stop', 2000);
+  return sendCommand('var.set on_air = false', 2000);
 }
 
-// Returns true when the output is on air, false otherwise. The output's
-// `.status` command reports "on (...)" while connected, "off" while stopped.
+// Returns true when on air, false otherwise. `var.get on_air` echoes the
+// interactive variable's value, e.g. "true" / "false".
 export async function streamStatus() {
-  const res = await sendCommand('stream.status', 2000);
-  return /\bon\b/i.test(res);
+  const res = await sendCommand('var.get on_air', 2000);
+  return /\btrue\b/i.test(res);
 }
