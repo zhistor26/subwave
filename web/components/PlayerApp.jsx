@@ -29,8 +29,18 @@ const DRAWER_TITLES = {
 };
 
 export default function PlayerApp({ contained = false }) {
-  const { nowPlaying, context, dj, activeShow, listeners, state, elapsed, progress } = useStationFeed();
-  const { audioRef, tunedIn, volume, setVolume, tune } = usePlayer();
+  const { nowPlaying, context, dj, activeShow, listeners, streamOnline, state, elapsed, progress } = useStationFeed();
+  const { audioRef, tunedIn, volume, setVolume, tune, stop } = usePlayer();
+
+  // streamOnline is null until the first poll resolves — only treat an
+  // explicit false as offline so the player never flashes "offline" on load.
+  const offline = streamOnline === false;
+
+  // If the station goes off air while someone is tuned in, tear playback down
+  // so the <audio> element isn't left retrying a dead mount.
+  useEffect(() => {
+    if (offline && tunedIn) stop();
+  }, [offline, tunedIn, stop]);
 
   // Wire OS-level media controls (lock screen, headphones, car display).
   // No onSkip on the public listener — a stray AirPods double-tap shouldn't
@@ -133,6 +143,7 @@ export default function PlayerApp({ contained = false }) {
       <TransportBar
         tunedIn={tunedIn}
         onTune={tune}
+        offline={offline}
         volume={volume}
         setVolume={setVolume}
         nowPlaying={nowPlaying}

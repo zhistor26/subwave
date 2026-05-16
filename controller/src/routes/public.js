@@ -8,23 +8,29 @@ import { queue } from '../broadcast/queue.js';
 
 export const router = express.Router();
 
-// Icecast listener count — small helper used by /now-playing. Cheap local
+// Icecast stream status + listener count — used by /now-playing. Cheap local
 // fetch with a hard 1.5s timeout so a slow Icecast can never wedge the
-// every-5s poll the UI does. Returns 0/0 on any failure.
-async function getListenerStats() {
+// every-5s poll the UI does. `online` is false when the /stream.mp3 mount has
+// no source attached (admin took the station off air, or Liquidsoap is down)
+// or when Icecast itself is unreachable. Returns offline + 0/0 on any failure.
+async function getStreamStatus() {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 1500);
     const r = await fetch('http://icecast:7702/status-json.xsl', { signal: ctrl.signal });
     clearTimeout(timer);
     const ic = (await r.json())?.icestats;
-    const src = Array.isArray(ic?.source) ? ic.source[0] : ic?.source;
+    const sources = Array.isArray(ic?.source) ? ic.source : ic?.source ? [ic.source] : [];
+    const src = sources.find(s => String(s?.listenurl || '').includes('/stream.mp3')) || null;
     return {
-      current: Number(src?.listeners || 0),
-      peak:    Number(src?.listener_peak || 0),
+      online: !!src,
+      listeners: {
+        current: Number(src?.listeners || 0),
+        peak:    Number(src?.listener_peak || 0),
+      },
     };
   } catch {
-    return { current: 0, peak: 0 };
+    return { online: false, listeners: { current: 0, peak: 0 } };
   }
 }
 
@@ -59,10 +65,10 @@ router.get('/cover/:id', async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/now-playing', async (req, res) => {
   try {
-    const [nowPlaying, ctx, listeners] = await Promise.all([
+    const [nowPlaying, ctx, stream] = await Promise.all([
       queue.getNowPlaying(),
       getFullContext(),
-      getListenerStats(),
+      getStreamStatus(),
     ]);
     const persona = settings.getEffectivePersona();
     // activeShow is { name, persona:{ name } } | null — surfaced to listeners.
@@ -74,7 +80,8 @@ router.get('/now-playing', async (req, res) => {
       context: ctx,
       dj: { name: persona?.name || 'Frequency', tagline: persona?.tagline || '' },
       activeShow,
-      listeners,
+      listeners: stream.listeners,
+      streamOnline: stream.online,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

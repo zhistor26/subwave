@@ -5,6 +5,7 @@ import BroadcastTicker from './BroadcastTicker';
 export default function TransportBar({
   tunedIn,
   onTune,
+  offline = false,
   volume,
   setVolume,
   nowPlaying,
@@ -64,12 +65,15 @@ export default function TransportBar({
           sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))]"
       >
         <button
-          onClick={onTune}
-          className="v3-eyebrow v3-focus cursor-pointer flex items-center gap-[10px] shrink-0 px-4 py-3 sm:px-7 sm:py-[14px]"
+          onClick={offline ? undefined : onTune}
+          disabled={offline}
+          aria-disabled={offline}
+          title={offline ? 'The station is currently off air' : undefined}
+          className={`v3-eyebrow v3-focus flex items-center gap-[10px] shrink-0 px-4 py-3 sm:px-7 sm:py-[14px] ${offline ? 'cursor-not-allowed' : 'cursor-pointer'}`}
           style={{
-            background: 'var(--ink)',
-            color: 'var(--bg)',
-            border: 'none',
+            background: offline ? 'var(--bg)' : 'var(--ink)',
+            color: offline ? 'var(--muted)' : 'var(--bg)',
+            border: offline ? '1px solid var(--muted)' : 'none',
           }}
         >
           <span
@@ -77,11 +81,11 @@ export default function TransportBar({
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: tunedIn ? 'var(--accent)' : '#5a5048',
+              background: offline ? 'var(--muted)' : tunedIn ? 'var(--accent)' : '#5a5048',
               display: 'inline-block',
             }}
           />
-          {tunedIn ? 'Tune Out' : 'Tune In'}
+          {offline ? 'Stream Offline' : tunedIn ? 'Tune Out' : 'Tune In'}
         </button>
 
         {/* Desktop ticker (mobile gets it as the strip above). Otherwise the
