@@ -4,7 +4,14 @@
 #   - container status
 #   - /api/health
 #   - /api/now-playing (proves the full pipeline, not just that a container is up)
+#   - /stream.mp3 audio level (proves the stream carries SOUND, not silence)
 #   - log scan for errors over the last 2 minutes
+#
+# Why the audio level check: /api/health returns "on-air" and bytes keep
+# flowing down /stream.mp3 even when Liquidsoap has a wedged source feeding
+# the Icecast mount digital silence. "on-air" + byte flow is NOT proof of a
+# working stream — only a non-silent audio level is. This is the failure
+# mode a near-simultaneous controller+liquidsoap recreate can leave behind.
 #
 # Exits 0 if everything looks healthy, 1 otherwise.
 # Designed to be readable to a human at a glance, not a strict CI gate.
@@ -99,7 +106,48 @@ else
 fi
 echo
 
+# --- audio level (stream carries sound, not silence) ------------------------
+# "on-air" + byte flow is not proof. A wedged Liquidsoap source feeds the
+# Icecast mount digital silence (~-91 dB) while every other check stays green.
+# Capture a few seconds and measure the mean volume with ffmpeg.
+echo "=== $EDGE/stream.mp3 audio level ==="
+SILENT=0
+if command -v ffmpeg >/dev/null 2>&1; then
+  TMP_MP3=$(mktemp /tmp/sw-healthcheck-XXXXXX.mp3)
+  curl -s --max-time 14 "$EDGE/stream.mp3" -o "$TMP_MP3" 2>/dev/null
+  BYTES=$(wc -c < "$TMP_MP3" 2>/dev/null | tr -d '[:space:]')
+  if [ "${BYTES:-0}" -lt 20000 ]; then
+    echo "FAILED — only ${BYTES:-0} bytes captured (stream not delivering audio)"
+    SILENT=1
+  else
+    MEAN=$(ffmpeg -hide_banner -i "$TMP_MP3" -af volumedetect -f null /dev/null 2>&1 \
+           | grep -oE 'mean_volume: -?[0-9.]+ dB' | grep -oE -- '-?[0-9.]+' | head -1)
+    if [ -z "$MEAN" ]; then
+      echo "could not measure (ffmpeg produced no mean_volume) — inspect manually"
+    else
+      # -50 dB threshold: real broadcast audio sits around -8 to -16 dB;
+      # a wedged/silent stream reads ~-91 dB. Anything below -50 is silence.
+      BELOW=$(awk -v m="$MEAN" 'BEGIN { print (m < -50) ? 1 : 0 }')
+      if [ "$BELOW" = "1" ]; then
+        echo "SILENT — mean_volume ${MEAN} dB (stream is on-air but carrying no sound)"
+        echo "  → Liquidsoap likely has a wedged source. Fix: docker compose -f $COMPOSE restart"
+        SILENT=1
+      else
+        echo "ok — mean_volume ${MEAN} dB"
+      fi
+    fi
+  fi
+  rm -f "$TMP_MP3"
+else
+  echo "skipped — ffmpeg not on PATH (cannot verify the stream carries sound)"
+fi
+echo
+
 # --- recent errors ----------------------------------------------------------
+# Note: the audio probe above disconnects mid-stream, which makes Caddy log a
+# benign "aborting with incomplete response / context canceled" for
+# /stream.mp3. That (and any normal stream-client disconnect) is filtered out
+# below so it doesn't read as a deploy failure.
 echo "=== errors in last 2m ==="
 ANY_ERRS=0
 SERVICES=$(docker compose -f "$COMPOSE" config --services 2>/dev/null)
@@ -107,6 +155,7 @@ for svc in $SERVICES; do
   errs=$(docker compose -f "$COMPOSE" logs --since 2m --tail 80 "$svc" 2>&1 \
          | grep -iE "error|fail|exception|fatal" \
          | grep -viE "no error|errors: 0|stderr|--with-stderr" \
+         | grep -viE "aborting with incomplete response|context canceled|reading: context" \
          | head -3)
   if [ -n "$errs" ]; then
     echo "--- $svc ---"
@@ -120,7 +169,7 @@ fi
 
 echo
 # --- exit code summary ------------------------------------------------------
-if [ $HEALTH_RC -ne 0 ] || [ $NP_RC -ne 0 ] || [ $ANY_ERRS -ne 0 ]; then
+if [ $HEALTH_RC -ne 0 ] || [ $NP_RC -ne 0 ] || [ $ANY_ERRS -ne 0 ] || [ $SILENT -ne 0 ]; then
   exit 1
 fi
 exit 0

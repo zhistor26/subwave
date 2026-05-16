@@ -20,7 +20,7 @@ The user has authorised free action on this hot path — `scripts/setup.sh`, `gi
 
 3. **Web in dev is hot-reloaded** (Next.js `npm run dev`); web in prod is a built standalone image and needs `--build` on any `web/**` change.
 
-4. **The IPC between Controller and Liquidsoap is file-based** through the shared `state/` (mounted at `/var/sub-wave`). When you recreate one of them, in-flight `next.txt`/`say.txt`/`now-playing.json` may be mid-write — accept a few-second blip; don't keep recreating to "fix" it.
+4. **The IPC between Controller and Liquidsoap is file-based** through the shared `state/` (mounted at `/var/sub-wave`). When you recreate one of them, in-flight `next.txt`/`say.txt`/`now-playing.json` may be mid-write — accept a few-second blip; don't keep recreating to "fix" it. **But there is a worse failure here, and it has bitten in production:** a near-simultaneous recreate of *both* `controller` and `liquidsoap` (which is exactly what `up -d --build controller web` triggers, because the `depends_on` graph also recreates `liquidsoap`) can have Liquidsoap pick up a bad/empty IPC request and **wedge a source into a `fail`/`blank` loop**. The result is silent but invisible: `/api/health` still says `on-air`, `/stream.mp3` still flows bytes, `/api/now-playing` still rotates tracks — but the audio is digital silence (~-91 dB). The cure is a plain `docker compose ... restart` (no rebuild — code is already baked in); it clears the wedged source state. The detector is an **audio-level probe**, not the health endpoint — see Step 5.
 
 5. **Compose dependency ordering will recreate more than you asked for.** Asking to recreate `controller` and `web` will also recreate `liquidsoap` because of the `depends_on` graph. That's fine — same image, no source change means no behaviour change. Don't be surprised by it and don't fight it.
 
@@ -305,12 +305,15 @@ What healthy looks like:
 - All five containers (`caddy`, `controller`, `icecast`, `liquidsoap`, `web` in prod; the dev subset otherwise) `Up` with no `(unhealthy)` or restarting.
 - `GET /api/health` → `{"status":"on-air"}`.
 - `GET /api/now-playing` → an object with `nowPlaying.title` and `nowPlaying.artist` populated (silence is a yellow flag, not necessarily failed — the stream may just be between tracks), `context.dominantMood` set, and a sane `weather` block.
+- **The audio-level probe reports a non-silent `mean_volume`.** The script captures a few seconds of `/stream.mp3` and measures it with `ffmpeg volumedetect`. Real broadcast audio sits around −8 to −16 dB; a wedged/silent stream reads ~−91 dB. **This is the only check that proves the stream carries sound** — `/api/health` and byte flow do not (see Fact #4). If the probe says `SILENT`, the deploy is *not* done: `docker compose -f <COMPOSE> restart` to clear the wedged Liquidsoap source, then re-run the probe.
 - No `error|fail|exception` lines in `docker compose logs --since 2m` for any service.
+
+**Always end a deploy by confirming the audio-level probe is non-silent — not just that `/api/health` says `on-air`.** A green health endpoint over a silent stream is the exact production failure this skill exists to catch. If `health-check.sh` reports `SILENT` (or you're verifying by hand and a captured sample reads below ~−50 dB), restart the stack and probe again before reporting success.
 
 Things that look like failure but aren't:
 - `HEAD /stream.mp3` returns `400 Bad Request`. That's normal — Icecast only answers `GET`, not `HEAD`. Use `curl -sI` only to confirm the route exists; don't treat `400` as broken.
 - Liquidsoap also gets recreated when you only asked for controller/web. That's compose dependency ordering, not a regression (see Fact #5).
-- A few seconds of "Empty queue" or silence right after recreating Liquidsoap — the controller will re-feed `next.txt` on the next 1-second poll.
+- A few seconds of "Empty queue" or silence right after recreating Liquidsoap — the controller will re-feed `next.txt` on the next 1-second poll. (A *few seconds* — not a steady ~−91 dB. Persistent silence is the wedged-source bug in Fact #4, not this.)
 - On a brand-new install: an empty `nowPlaying.title` for the first minute. The controller is still discovering the library and rendering the first DJ link. Wait one cycle (~10-30s).
 
 If a container is restarting, fetch its last ~80 log lines and report the failure. Don't auto-recreate; the user wants to see the error, not a flapping container.
@@ -345,7 +348,7 @@ Free to act on: prerequisite checks, `scripts/setup.sh` on a fresh checkout, `gi
 
 ## Helper
 
-`scripts/health-check.sh` (relative to this skill folder) runs the standard probes and emits a compact report. It auto-detects which compose file is live and which host port Caddy is mapped to, so it works whether the user has Caddy on `:80` or `:4800`.
+`scripts/health-check.sh` (relative to this skill folder) runs the standard probes and emits a compact report. It auto-detects which compose file is live and which host port Caddy is mapped to, so it works whether the user has Caddy on `:80` or `:4800`. It includes the **audio-level probe** — it captures a few seconds of `/stream.mp3` and fails (non-zero exit, `SILENT` line) if the mean volume is below ~−50 dB, catching the wedged-source silent-stream bug that `/api/health` cannot see. Needs `ffmpeg` on PATH; if absent, the probe is skipped with a warning rather than silently passing.
 
 ## Notes for working on the project (worth carrying forward)
 
