@@ -249,7 +249,7 @@ function normalizeShows(raw, personaIds) {
     seen.add(id);
     out.push({
       id, name,
-      topic: typeof item.topic === 'string' ? item.topic.trim().slice(0, 500) : '',
+      topic: typeof item.topic === 'string' ? item.topic.trim().slice(0, 1000) : '',
       personaId: item.personaId,
       mood: item.mood,
     });
@@ -490,7 +490,7 @@ function validateShowsStrict(raw, personas) {
     const name = String(item.name ?? '').trim();
     if (name.length < 1 || name.length > 60) throw new Error(`shows[${i}].name must be 1-60 chars`);
     const topic = String(item.topic ?? '').trim();
-    if (topic.length > 500) throw new Error(`shows[${i}].topic must be 0-500 chars`);
+    if (topic.length > 1000) throw new Error(`shows[${i}].topic must be 0-1000 chars`);
     if (!personaIds.includes(item.personaId)) {
       throw new Error(`shows[${i}].personaId must reference an existing persona`);
     }

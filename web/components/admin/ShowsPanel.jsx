@@ -16,7 +16,7 @@ import { Card, Btn, Pill, Eyebrow, Metric } from './ui';
 import { Modal } from '../ui/modal';
 
 const NAME_MAX = 60;
-const TOPIC_MAX = 500;
+const TOPIC_MAX = 1000;
 const SHOWS_MAX = 64;
 
 // Storage keys are 0=Sun..6=Sat (JS getDay); display Mon-first.
@@ -669,10 +669,17 @@ export default function ShowsPanel() {
 
             <label className="field">
               <span className="field-label">topic — fed to the DJ as the show theme</span>
+              <span className="field-hint">
+                This is the brief the AI DJ works from. The more you describe,
+                the better it picks music and writes links — name genres, eras,
+                moods, artists to lean into or avoid, the time of day, the kind
+                of listener, and how the host should sound. Write it like
+                you're briefing a real DJ before their slot.
+              </span>
               <textarea
-                rows={3} value={draft.topic} maxLength={TOPIC_MAX}
+                rows={7} value={draft.topic} maxLength={TOPIC_MAX}
                 onChange={e => setDraftField({ topic: e.target.value })}
-                placeholder="e.g. slow ambient and modern classical — for the late shift"
+                placeholder="e.g. Slow ambient, modern classical and downtempo for the late shift. Think Nils Frahm, Hammock, Bonobo's quieter side — nothing with a hard beat. Keep the host calm and unhurried, like a friend talking you down at 1am."
                 className="textarea"
               />
               <span className="field-hint">{draft.topic.trim().length}/{TOPIC_MAX}</span>
