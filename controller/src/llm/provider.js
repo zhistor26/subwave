@@ -6,9 +6,10 @@
 // without a redeploy and without touching a single call site.
 //
 // The active provider/model lives in `settings.llm` (see settings.js):
-//   { provider: 'ollama' | 'anthropic' | 'openai' | 'google' | 'openrouter' | 'gateway',
-//     model:    string,   // empty → provider default
-//     apiKey:   string }  // empty → read the provider's env var
+//   { provider:  'ollama' | 'anthropic' | 'openai' | 'google' | 'openrouter' | 'gateway',
+//     model:     string,   // empty → provider default
+//     apiKey:    string,   // empty → read the provider's env var
+//     ollamaUrl: string }  // empty → config.ollama.url default (Ollama only)
 //
 // `ollama` is the default and needs no key. The cloud providers are opt-in.
 
@@ -27,7 +28,13 @@ import * as settings from '../settings.js';
 const clientCache = new Map();
 
 function llmCfg() {
-  return settings.get().llm || { provider: 'ollama', model: '', apiKey: '' };
+  return settings.get().llm || { provider: 'ollama', model: '', apiKey: '', ollamaUrl: '' };
+}
+
+// Ollama server URL — from settings (admin UI), falling back to the config
+// default when the settings field is left blank.
+function ollamaBaseUrl(cfg) {
+  return cfg.ollamaUrl || config.ollama.url;
 }
 
 // Resolve the concrete model id. Ollama falls back to the env-configured
@@ -45,7 +52,7 @@ function resolveModelId(cfg) {
 export function languageModel() {
   const cfg = llmCfg();
   const id = resolveModelId(cfg);
-  const sig = `${cfg.provider}|${id}|${cfg.apiKey || ''}`;
+  const sig = `${cfg.provider}|${id}|${cfg.apiKey || ''}|${ollamaBaseUrl(cfg)}`;
 
   const cached = clientCache.get(sig);
   if (cached) return cached;
@@ -79,7 +86,7 @@ export function languageModel() {
     }
     case 'ollama':
     default: {
-      const provider = createOllama({ baseURL: `${config.ollama.url}/api` });
+      const provider = createOllama({ baseURL: `${ollamaBaseUrl(cfg)}/api` });
       model = provider(id);
       break;
     }
@@ -105,4 +112,10 @@ export function activeModelLabel() {
 // path or fall back to the pre-built candidate pool.
 export function providerName() {
   return llmCfg().provider;
+}
+
+// The effective Ollama server URL — settings field, or the config default.
+// Used by /debug to report what the registry will actually talk to.
+export function activeOllamaUrl() {
+  return ollamaBaseUrl(llmCfg());
 }

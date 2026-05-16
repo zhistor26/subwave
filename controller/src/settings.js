@@ -135,6 +135,9 @@ const DEFAULTS = {
     provider: 'ollama',
     model: '',
     apiKey: '',
+    // Ollama server URL. Empty → fall back to config.ollama.url. Only used
+    // when provider === 'ollama'.
+    ollamaUrl: '',
     pickerAgent: false,
   },
   skills: {
@@ -368,6 +371,9 @@ export async function load() {
         : DEFAULTS.llm.provider,
       model: typeof stored.llm?.model === 'string' ? stored.llm.model.trim() : DEFAULTS.llm.model,
       apiKey: typeof stored.llm?.apiKey === 'string' ? stored.llm.apiKey : DEFAULTS.llm.apiKey,
+      ollamaUrl: typeof stored.llm?.ollamaUrl === 'string'
+        ? stored.llm.ollamaUrl.trim()
+        : DEFAULTS.llm.ollamaUrl,
       pickerAgent: typeof stored.llm?.pickerAgent === 'boolean'
         ? stored.llm.pickerAgent
         : DEFAULTS.llm.pickerAgent,
@@ -641,6 +647,14 @@ export async function update(patch) {
     }
     if (l.apiKey !== undefined && l.apiKey !== 'set') {
       next.llm.apiKey = String(l.apiKey);
+    }
+    if (l.ollamaUrl !== undefined) {
+      const v = String(l.ollamaUrl).trim();
+      if (v.length > 200) throw new Error('llm.ollamaUrl must be 0-200 chars');
+      if (v && !/^https?:\/\//i.test(v)) {
+        throw new Error('llm.ollamaUrl must start with http:// or https://');
+      }
+      next.llm.ollamaUrl = v.replace(/\/+$/, '');  // strip trailing slashes
     }
     if (l.pickerAgent !== undefined) {
       next.llm.pickerAgent = !!l.pickerAgent;

@@ -9,7 +9,13 @@
 import { config } from '../config.js';
 import * as subsonic from './subsonic.js';
 import * as library from './library.js';
+import * as settings from '../settings.js';
 import { SHOW_MOODS as MOOD_VOCAB } from '../settings.js';
+
+// Resolved in main() from the admin Settings UI (llm.ollamaUrl / llm.model),
+// falling back to the config defaults when those fields are blank.
+let ollamaUrl = config.ollama.url;
+let ollamaModel = config.ollama.model;
 
 const SYSTEM = `You tag music tracks with mood and energy for a personal radio station.
 
@@ -34,11 +40,11 @@ async function tagOne(song) {
     `Year: ${song.year || '?'}\n` +
     `Genre: ${song.genre || '?'}`;
 
-  const res = await fetch(`${config.ollama.url}/api/chat`, {
+  const res = await fetch(`${ollamaUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: config.ollama.model,
+      model: ollamaModel,
       messages: [
         { role: 'system', content: SYSTEM },
         { role: 'user', content: userPrompt },
@@ -71,8 +77,12 @@ async function main() {
   const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) : Infinity;
 
   await library.load();
+  await settings.load();
+  const llm = settings.get().llm || {};
+  ollamaUrl = llm.ollamaUrl || config.ollama.url;
+  ollamaModel = llm.model || config.ollama.model;
   console.log(`[tag] starting. ${library.allTaggedIds().length} tracks already tagged.`);
-  console.log(`[tag] model: ${config.ollama.model} @ ${config.ollama.url}`);
+  console.log(`[tag] model: ${ollamaModel} @ ${ollamaUrl}`);
   if (limit !== Infinity) console.log(`[tag] limit: ${limit} new tracks`);
 
   let processed = 0;

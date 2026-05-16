@@ -48,15 +48,11 @@ function personaValid(p, defaultEngine) {
 }
 
 // For a cloud persona: why (if at all) its cloud voice won't actually play —
-// the global Cloud engine is switched off, or its provider's API key is
-// missing. Returns a human sentence, or null when the cloud voice is good to
-// go. A persona can look fully configured here yet still fall back silently;
-// this surfaces that gap before it airs.
+// its provider's API key is missing. Returns a human sentence, or null when
+// the cloud voice is good to go. A persona can look fully configured here yet
+// still fall back silently; this surfaces that gap before it airs.
 function cloudIssue(persona, data) {
   if (persona?.tts?.engine !== 'cloud') return null;
-  if (data?.values?.tts?.cloud?.enabled === false) {
-    return 'Cloud TTS is switched off in Settings → TTS voice.';
-  }
   const envKey = persona.tts.cloudProvider === 'elevenlabs'
     ? 'ELEVENLABS_API_KEY' : 'OPENAI_API_KEY';
   if (data?.env && !data.env[envKey]) {
@@ -456,7 +452,7 @@ export default function PersonasPanel() {
             <div className="field">
               <textarea
                 className="textarea"
-                rows="3"
+                rows="7"
                 value={focused.soul}
                 placeholder="e.g. warm and dry, never corny — observant, favours one good image over a list"
                 onChange={e => setPersona(safeIdx, { soul: e.target.value })}

@@ -9,8 +9,11 @@ export const config = {
     clientName: 'sub-wave',
   },
   ollama: {
-    url: process.env.OLLAMA_URL || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+    // Default-when-blank server URL + model. The admin Settings UI
+    // (`llm.ollamaUrl` / `llm.model`) overrides both — there are no
+    // OLLAMA_URL / OLLAMA_MODEL env vars; the UI fields are the only source.
+    url: 'http://localhost:11434',
+    model: 'nemotron-3-super:cloud',
   },
   piper: {
     binary: process.env.PIPER_BIN || '/usr/local/bin/piper',

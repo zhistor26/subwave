@@ -40,6 +40,11 @@ export default {
   kind: 'web-search',
   cooldownMs: 60 * 60 * 1000,
 
+  // Env key this skill needs. `ready()` is surfaced in the skill catalogue so
+  // the admin UI can warn when the key is missing.
+  requiresKey: 'SEARCH_API_KEY',
+  ready() { return !!config.search.apiKey; },
+
   // No key, no artist, or the same artist we last searched → don't fire.
   shouldFire(_ctx, state) {
     if (!config.search.apiKey) return false;

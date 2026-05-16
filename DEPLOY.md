@@ -61,7 +61,7 @@ $EDITOR controller/.env
 
 Required values:
 - `NAVIDROME_URL`, `NAVIDROME_USER`, `NAVIDROME_PASS`
-- `OLLAMA_URL`, `OLLAMA_MODEL`
+- (Ollama server URL + model are set in the admin Settings UI, not via env)
 - `ICECAST_SOURCE_PASSWORD` — must match the value Caddy/Icecast see (next file)
 
 **`docker/.env`** — passwords compose passes to Icecast and shares with Liquidsoap:

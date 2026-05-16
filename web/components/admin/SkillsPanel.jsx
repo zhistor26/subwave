@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAdminAuth } from '../../lib/adminAuth';
 import { Card, Btn, Pill, Eyebrow, Toggle } from './ui';
+import { V3Alert } from '../ui/alert';
 
 function cooldownLabel(ms) {
   if (!ms) return 'no cooldown';
@@ -136,6 +137,15 @@ export default function SkillsPanel() {
             </>
           }
         >
+          {s.ready === false && (
+            <div style={{ marginBottom: 12 }}>
+              <V3Alert tone="error" title="API key not set">
+                This skill needs the <code>{s.requiresKey || 'required API key'}</code> environment
+                variable set in <code>controller/.env</code>. Until then it stays inert and never
+                fires autonomously — even when enabled.
+              </V3Alert>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>

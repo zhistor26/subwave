@@ -102,7 +102,7 @@ Ask the user (one question each, or as a single bundle):
 
 - `NAVIDROME_URL` — e.g. `http://navidrome.local:4533`
 - `NAVIDROME_USER`, `NAVIDROME_PASS`
-- `OLLAMA_URL` and `OLLAMA_MODEL` (default `qwen2.5:7b`)
+- (Ollama server URL + model are set in the admin Settings UI, not via env)
 
 Then patch `controller/.env` in place with `sed`, keeping the rest of the file as-is. Do **not** echo passwords back to the chat.
 
