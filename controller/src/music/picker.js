@@ -236,8 +236,12 @@ async function pickViaPool(queue, ctx) {
       context: ctx,
     });
   } catch (err) {
-    queue.log('error', `picker LLM failed: ${err.message}`);
-    return null;
+    // The LLM pick failed outright (e.g. unparseable structured output even
+    // after the recovery attempt). We still hold a balanced, shuffled pool —
+    // take the top candidate rather than returning null, which would starve
+    // the queue and drop the stream to the generic auto.m3u playlist.
+    queue.log('error', `picker LLM failed: ${err.message} — falling back to first pool candidate`);
+    return { song: candidates[0], reason: 'fallback (LLM pick failed)', source: candidates[0]._source };
   }
 
   const chosen = candidates.find(c => c.id === pickRaw?.id);

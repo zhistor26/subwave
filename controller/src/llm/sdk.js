@@ -22,6 +22,18 @@ function stripThinking(s) {
   return s.replace(THINK_TAG_RE, '').replace(DANGLING_THINK_RE, '').trim();
 }
 
+// Pull a JSON object out of a free-text reply: drop ```json fences and any
+// prose around it, then take the outermost { … }. Used by djObject's recovery
+// path when native structured output fails to parse.
+function extractJson(s) {
+  if (!s) throw new Error('empty model response');
+  const t = s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const start = t.indexOf('{');
+  const end = t.lastIndexOf('}');
+  if (start === -1 || end <= start) throw new Error('no JSON object in model response');
+  return t.slice(start, end + 1);
+}
+
 // `repeat_penalty` is Ollama-specific and lives under providerOptions.ollama;
 // non-Ollama providers ignore the block entirely, so it's safe to always pass.
 function ollamaOptions(repeatPenalty) {
@@ -76,8 +88,18 @@ export async function djText({
 }
 
 // Schema-validated structured output. `schema` is a Zod object schema; the
-// returned value is parsed and validated — no manual JSON.parse, no regex
-// recovery. Throws if the model can't produce a conforming object.
+// returned value is parsed and validated.
+//
+// Two attempts, because small/cloud models occasionally botch structured
+// output (the AI SDK throws NoObjectGeneratedError — "could not parse the
+// response"):
+//   1. native    — Output.object, which forwards the schema to the provider's
+//                   structured-output mode (constrained decoding where it's
+//                   supported).
+//   2. recovery  — plain free-text, then strip <think> blocks / ``` fences and
+//                   Zod-validate ourselves. Catches models that wrap the JSON
+//                   in reasoning the native parser chokes on.
+// Throws only if BOTH attempts fail.
 export async function djObject({
   system,
   prompt,
@@ -86,33 +108,49 @@ export async function djObject({
   kind = 'sdk.djObject',
 }) {
   const started = Date.now();
-  try {
-    const result = await generateText({
-      model: languageModel(),
-      system,
-      prompt,
-      temperature,
-      output: Output.object({ schema }),
-      providerOptions: ollamaOptions(null),
-    });
-    const object = result.output;
-    record({
-      kind, ok: true, ms: Date.now() - started,
-      model: activeModelLabel(),
-      sampling: { temperature },
-      via: 'ai-sdk',
-      systemPreview: system?.slice(0, 200),
-      user: prompt,
-      response: JSON.stringify(object).slice(0, 500),
-      t: new Date().toISOString(),
-    });
-    return object;
-  } catch (err) {
-    record({
-      kind, ok: false, ms: Date.now() - started,
-      model: activeModelLabel(), via: 'ai-sdk',
-      user: prompt, error: err.message, t: new Date().toISOString(),
-    });
-    throw err;
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      let object;
+      if (attempt === 1) {
+        const result = await generateText({
+          model: languageModel(),
+          system,
+          prompt,
+          temperature,
+          output: Output.object({ schema }),
+          providerOptions: ollamaOptions(null),
+        });
+        object = result.output;
+      } else {
+        const result = await generateText({
+          model: languageModel(),
+          system,
+          prompt: `${prompt}\n\nRespond with a single JSON object only — no prose, no markdown fences.`,
+          temperature,
+          providerOptions: ollamaOptions(null),
+        });
+        object = schema.parse(JSON.parse(extractJson(stripThinking(result.text))));
+      }
+      record({
+        kind, ok: true, ms: Date.now() - started,
+        model: activeModelLabel(),
+        sampling: { temperature },
+        via: attempt === 1 ? 'ai-sdk' : 'ai-sdk:recovery',
+        systemPreview: system?.slice(0, 200),
+        user: prompt,
+        response: JSON.stringify(object).slice(0, 500),
+        t: new Date().toISOString(),
+      });
+      return object;
+    } catch (err) {
+      lastErr = err;
+    }
   }
+  record({
+    kind, ok: false, ms: Date.now() - started,
+    model: activeModelLabel(), via: 'ai-sdk',
+    user: prompt, error: lastErr.message, t: new Date().toISOString(),
+  });
+  throw lastErr;
 }
