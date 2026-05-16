@@ -138,8 +138,14 @@ body::after {
   to   { transform: translateX(0); }
 }
 
+@keyframes v3-modal-pop {
+  from { transform: translate(-50%, -50%) scale(0.97); opacity: 0; }
+  to   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
 .v3-drawer-content { animation: v3-slide-in-right 220ms cubic-bezier(.2,.7,.2,1); }
 .v3-drawer-overlay { animation: v3-fade-in 220ms ease-out; }
+.v3-modal-pop { animation: v3-modal-pop 160ms cubic-bezier(.2,.7,.2,1); }
 .v3-blink { animation: v3-blink 1s steps(1) infinite; }
 
 /* Sonner toast styling — sharp ink-bordered cream cards. */

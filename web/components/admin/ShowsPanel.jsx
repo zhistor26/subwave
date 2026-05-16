@@ -6,9 +6,14 @@
 // air, its mood overrides the autonomous mood, and its topic feeds the DJ.
 // An empty hour = the station runs autonomously, as it does today.
 // Everything POSTs to /settings and applies live.
-import { useEffect, useState } from 'react';
+//
+// Shows are created/edited through a centered modal (components/ui/modal).
+// The weekly grid is drag-paintable: pick a brush, then click-drag across
+// cells; click a day label or hour header to fill a whole row/column.
+import { useEffect, useRef, useState } from 'react';
 import { useAdminAuth } from '../../lib/adminAuth';
 import { Card, Btn, Pill, Eyebrow, Metric } from './ui';
+import { Modal } from '../ui/modal';
 
 const NAME_MAX = 60;
 const TOPIC_MAX = 500;
@@ -56,6 +61,14 @@ export default function ShowsPanel() {
   const [brush, setBrush] = useState(null);   // showId | 'erase' | null
   const [now, setNow] = useState(() => new Date());
 
+  // Modal state: `editIndex` is null (closed), -1 (new show), or a show index.
+  const [editIndex, setEditIndex] = useState(null);
+  const [draft, setDraft] = useState(null);
+
+  // Drag-paint stroke: { active, value } — value is the showId/null painted
+  // for the whole stroke, decided on mousedown so a drag doesn't flicker.
+  const strokeRef = useRef({ active: false, value: undefined });
+
   // Live clock — the grid highlights the cell the station is in right now.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -63,6 +76,17 @@ export default function ShowsPanel() {
   }, []);
   const nowDay = now.getDay();
   const nowHour = now.getHours();
+
+  // End any drag-paint stroke when the pointer is released anywhere.
+  useEffect(() => {
+    const end = () => { strokeRef.current.active = false; };
+    window.addEventListener('mouseup', end);
+    window.addEventListener('touchend', end);
+    return () => {
+      window.removeEventListener('mouseup', end);
+      window.removeEventListener('touchend', end);
+    };
+  }, []);
 
   const load = async () => {
     try {
@@ -85,13 +109,14 @@ export default function ShowsPanel() {
           const day = sched[d];
           if (Array.isArray(day)) for (let h = 0; h < 24; h++) week[d][h] = day[h] ?? null;
         }
-        setForm({
-          shows: (j.values.shows || []).map(s => ({
-            id: s.id, name: s.name ?? '', topic: s.topic ?? '',
-            personaId: s.personaId ?? '', mood: s.mood ?? '',
-          })),
-          schedule: week,
-        });
+        const shows = (j.values.shows || []).map(s => ({
+          id: s.id, name: s.name ?? '', topic: s.topic ?? '',
+          personaId: s.personaId ?? '', mood: s.mood ?? '',
+        }));
+        setForm({ shows, schedule: week });
+        // Arm the first valid show as the brush so the grid is paintable at once.
+        const firstValid = shows.find(showValid);
+        if (firstValid) setBrush(b => b ?? firstValid.id);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,20 +131,45 @@ export default function ShowsPanel() {
   const showById = (id) => form?.shows.find(s => s.id === id) || null;
   const personaName = (id) => personas.find(p => p.id === id)?.name || '—';
 
-  // ── show helpers ─────────────────────────────────────────────────────────
-  const setShow = (i, patch) =>
-    setForm(f => ({ ...f, shows: f.shows.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) }));
-  const addShow = () =>
-    setForm(f => {
-      if (f.shows.length >= SHOWS_MAX) return f;
-      return {
-        ...f,
-        shows: [...f.shows, {
-          id: clientMintId(), name: 'New show', topic: '',
-          personaId: personas[0]?.id || '', mood: moods[0] || '',
-        }],
-      };
+  // ── show modal ───────────────────────────────────────────────────────────
+  const openNew = () => {
+    if (!form || form.shows.length >= SHOWS_MAX || personas.length === 0) return;
+    setEditIndex(-1);
+    setDraft({
+      name: '', topic: '',
+      personaId: personas[0]?.id || '', mood: moods[0] || '',
     });
+  };
+  const openEdit = (i) => {
+    if (!form) return;
+    const s = form.shows[i];
+    setEditIndex(i);
+    setDraft({ name: s.name, topic: s.topic, personaId: s.personaId, mood: s.mood });
+  };
+  const closeModal = () => { setEditIndex(null); setDraft(null); };
+  const setDraftField = (patch) => setDraft(d => ({ ...d, ...patch }));
+  const commitDraft = () => {
+    if (!draft || !showValid(draft)) return;
+    const clean = {
+      name: draft.name.trim(), topic: draft.topic.trim(),
+      personaId: draft.personaId, mood: draft.mood,
+    };
+    if (editIndex === -1) {
+      const id = clientMintId();
+      setForm(f => (f.shows.length >= SHOWS_MAX
+        ? f
+        : { ...f, shows: [...f.shows, { id, ...clean }] }));
+      // arm the new show as the brush if nothing is armed yet
+      setBrush(b => b ?? id);
+    } else {
+      setForm(f => ({
+        ...f,
+        shows: f.shows.map((s, idx) => (idx === editIndex ? { ...s, ...clean } : s)),
+      }));
+    }
+    closeModal();
+  };
+
   const removeShow = (i) =>
     setForm(f => {
       const target = f.shows[i];
@@ -132,20 +182,70 @@ export default function ShowsPanel() {
     });
 
   // ── grid helpers ─────────────────────────────────────────────────────────
-  const paintCell = (day, hour) => {
-    if (brush === null) return;
+  const setCell = (day, hour, value) =>
     setForm(f => {
-      const week = JSON.parse(JSON.stringify(f.schedule));
-      if (brush === 'erase') {
-        week[day][hour] = null;
-      } else {
-        // toggle: clicking the same show again clears the cell
-        week[day][hour] = week[day][hour] === brush ? null : brush;
+      if (f.schedule[day][hour] === value) return f;
+      const week = { ...f.schedule, [day]: f.schedule[day].slice() };
+      week[day][hour] = value;
+      return { ...f, schedule: week };
+    });
+
+  // The value a stroke paints: erase brush → null; clicking a cell that already
+  // holds the brush → null (toggle off); otherwise the brushed show id.
+  const strokeValueFor = (day, hour) => {
+    if (brush === 'erase' || brush == null) return null;
+    return form.schedule[day][hour] === brush ? null : brush;
+  };
+  const beginStroke = (day, hour) => {
+    if (brush == null) return;
+    const v = strokeValueFor(day, hour);
+    strokeRef.current = { active: true, value: v };
+    setCell(day, hour, v);
+  };
+  const extendStroke = (day, hour) => {
+    if (!strokeRef.current.active) return;
+    setCell(day, hour, strokeRef.current.value);
+  };
+
+  // Fill a whole day (row) or hour (column). Toggles: if every target cell
+  // already holds the brush, clear them instead.
+  const fillDay = (day) => {
+    if (brush == null) return;
+    setForm(f => {
+      const cells = f.schedule[day];
+      const allSet = brush !== 'erase' && cells.every(c => c === brush);
+      const v = brush === 'erase' || allSet ? null : brush;
+      return { ...f, schedule: { ...f.schedule, [day]: Array(24).fill(v) } };
+    });
+  };
+  const fillHour = (hour) => {
+    if (brush == null) return;
+    setForm(f => {
+      const allSet = brush !== 'erase'
+        && DAYS.every(({ key }) => f.schedule[key][hour] === brush);
+      const v = brush === 'erase' || allSet ? null : brush;
+      const week = {};
+      for (let d = 0; d < 7; d++) {
+        week[d] = f.schedule[d].slice();
+        week[d][hour] = v;
       }
       return { ...f, schedule: week };
     });
   };
   const clearWeek = () => setForm(f => ({ ...f, schedule: emptyWeek() }));
+
+  // Touch drag — translate the moving touch point into a grid cell.
+  const onGridTouchMove = (e) => {
+    if (!strokeRef.current.active) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const cell = el?.closest?.('[data-cell]');
+    if (cell) {
+      e.preventDefault();
+      extendStroke(Number(cell.dataset.day), Number(cell.dataset.hour));
+    }
+  };
 
   // ── validation ───────────────────────────────────────────────────────────
   const allShowsOk = form ? form.shows.every(showValid) : false;
@@ -157,7 +257,6 @@ export default function ShowsPanel() {
 
   // ── now / up next / after that — derived from the live schedule ──────────
   const slotAhead = (offset) => {
-    const total = nowDay * 24 + nowHour;
     let d = nowDay, h = nowHour, seen = 0, hopped = 0;
     while (seen < offset && hopped < 168) {
       const cur = form?.schedule?.[d]?.[h] ?? null;
@@ -166,7 +265,6 @@ export default function ShowsPanel() {
       const nxt = form?.schedule?.[d]?.[h] ?? null;
       if (nxt !== cur) seen++;
     }
-    void total;
     return { day: d, hour: h, showId: form?.schedule?.[d]?.[h] ?? null };
   };
 
@@ -220,6 +318,7 @@ export default function ShowsPanel() {
   const after = slotAhead(2);
   const upNextShow = upNext.showId ? showById(upNext.showId) : null;
   const afterShow = after.showId ? showById(after.showId) : null;
+  const draftValid = draft ? showValid(draft) : false;
 
   const NowCard = ({ label, accent, slotHour, show, showId }) => {
     const c = showId ? colorOf(showId) : 'transparent';
@@ -268,7 +367,7 @@ export default function ShowsPanel() {
             </div>
           </div>
           <Metric n={String(scheduledHours)} l="hours scheduled" />
-          <Btn lg tone="accent" onClick={addShow}
+          <Btn lg tone="accent" onClick={openNew}
             disabled={form.shows.length >= SHOWS_MAX || personas.length === 0}>
             + New show
           </Btn>
@@ -298,39 +397,94 @@ export default function ShowsPanel() {
       <Card
         title="Weekly schedule"
         sub="Mon–Sun · 24h"
-        right={<>
-          <span className="caption">brush</span>
-          <div className="seg accent">
-            <button
-              className={brush === 'erase' ? 'active' : ''}
-              onClick={() => setBrush(brush === 'erase' ? null : 'erase')}
-            >
-              Erase
-            </button>
-            {validBrushes.map(s => (
+        right={<Btn sm onClick={clearWeek}>Clear week</Btn>}
+      >
+        {/* brush picker — colour-swatched, click to arm */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12,
+        }}>
+          <span className="caption" style={{ marginRight: 2 }}>brush</span>
+          {validBrushes.length === 0 && (
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>
+              add a show to start painting
+            </span>
+          )}
+          {validBrushes.map((s) => {
+            const active = brush === s.id;
+            return (
               <button
                 key={s.id}
-                className={brush === s.id ? 'active' : ''}
-                onClick={() => setBrush(brush === s.id ? null : s.id)}
+                type="button"
+                onClick={() => setBrush(active ? null : s.id)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
+                  border: `1px solid ${active ? 'var(--ink)' : 'var(--separator-strong)'}`,
+                  background: active ? 'var(--ink)' : 'transparent',
+                  color: active ? 'var(--bg)' : 'var(--ink)',
+                }}
               >
+                <span style={{
+                  width: 12, height: 12, flexShrink: 0,
+                  background: colorOf(s.id),
+                  outline: active ? '1px solid var(--bg)' : 'none',
+                }} />
                 {s.name.trim() || 'untitled'}
               </button>
-            ))}
-          </div>
-          <Btn sm onClick={clearWeek}>Clear week</Btn>
-        </>}
-      >
-        <div style={{ overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '40px repeat(24, minmax(28px, 1fr))', gap: 0, minWidth: 720 }}>
+            );
+          })}
+          {validBrushes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setBrush(brush === 'erase' ? null : 'erase')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
+                border: `1px solid ${brush === 'erase' ? 'var(--ink)' : 'var(--separator-strong)'}`,
+                background: brush === 'erase' ? 'var(--ink)' : 'transparent',
+                color: brush === 'erase' ? 'var(--bg)' : 'var(--muted)',
+              }}
+            >
+              <span style={{
+                width: 12, height: 12, flexShrink: 0,
+                border: '1px solid currentColor',
+                background: 'repeating-linear-gradient(45deg, currentColor 0 2px, transparent 2px 4px)',
+              }} />
+              Erase
+            </button>
+          )}
+        </div>
+
+        <div
+          style={{ overflowX: 'auto' }}
+          onTouchMove={onGridTouchMove}
+        >
+          <div style={{
+            display: 'grid', gridTemplateColumns: '44px repeat(24, minmax(28px, 1fr))',
+            gap: 0, minWidth: 760, userSelect: 'none', touchAction: 'pan-x',
+          }}>
             <span />
             {HOURS.map(h => (
-              <span key={h} className="mono-num" style={{
-                fontSize: 9, textAlign: 'center', padding: '4px 0',
-                color: h === nowHour ? 'var(--accent)' : 'var(--muted)',
-                fontWeight: h === nowHour ? 700 : 400,
-              }}>
+              <button
+                key={h}
+                type="button"
+                onClick={() => fillHour(h)}
+                title={brush == null
+                  ? `${String(h).padStart(2, '0')}:00`
+                  : `Fill ${String(h).padStart(2, '0')}:00 across all days`}
+                className="mono-num"
+                style={{
+                  fontSize: 9, textAlign: 'center', padding: '5px 0',
+                  color: h === nowHour ? 'var(--accent)' : 'var(--muted)',
+                  fontWeight: h === nowHour ? 700 : 400,
+                  background: 'transparent', border: 'none', fontFamily: 'inherit',
+                  cursor: brush == null ? 'default' : 'pointer',
+                }}
+              >
                 {String(h).padStart(2, '0')}
-              </span>
+              </button>
             ))}
             {DAYS.map(({ key, label }) => (
               <DayRow key={key} dayKey={key} label={label} />
@@ -356,8 +510,10 @@ export default function ShowsPanel() {
         </div>
 
         <p style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-          Pick a brush above, then click cells to paint. Click an assigned cell with
-          the same brush to clear it. The vermilion-ringed cell is the hour on air.
+          Pick a brush, then <b>click or drag</b> across cells to paint. Click a
+          {' '}<b>day name</b> to fill that day, or an <b>hour</b> to fill that hour
+          {' '}across the week. Painting over a matching cell clears it. The
+          {' '}vermilion-ringed cell is the hour on air.
         </p>
       </Card>
 
@@ -365,80 +521,58 @@ export default function ShowsPanel() {
       <Card
         title="Show definitions"
         sub={`${form.shows.length}/${SHOWS_MAX} shows`}
-        right={<Btn sm tone="accent" onClick={addShow}
+        right={<Btn sm tone="accent" onClick={openNew}
           disabled={form.shows.length >= SHOWS_MAX || personas.length === 0}>
           + Add show
         </Btn>}
       >
         {form.shows.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 12 }}>No shows yet — add one to start.</p>
+          <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+            No shows yet — add one to start programming the week.
+          </p>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gap: 8 }}>
           {form.shows.map((s, i) => {
             const ok = showValid(s);
             const hrs = countHours(s.id);
             return (
               <div key={s.id} style={{
-                border: `1px solid ${ok ? 'var(--ink)' : 'var(--danger)'}`,
-                padding: 14, display: 'grid', gap: 10, position: 'relative',
+                border: `1px solid ${ok ? 'var(--separator-strong)' : 'var(--danger)'}`,
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 12px 10px 0',
               }}>
                 <div style={{
-                  position: 'absolute', top: 0, left: 0, bottom: 0, width: 4,
+                  width: 4, alignSelf: 'stretch',
                   background: SHOW_COLORS[i % SHOW_COLORS.length],
                 }} />
-                <div style={{ paddingLeft: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="text" value={s.name} maxLength={NAME_MAX}
-                    onChange={e => setShow(i, { name: e.target.value })}
-                    className="input" placeholder="Show name"
-                    style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 800 }}
-                  />
-                  <Btn sm tone="danger" onClick={() => removeShow(i)} title="Remove this show">
-                    ✕
-                  </Btn>
+                <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 2 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {s.name.trim() || 'untitled'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    persona · {personaName(s.personaId)} · mood · {s.mood || '—'}
+                  </div>
+                  {s.topic.trim() && (
+                    <div style={{
+                      fontSize: 11, color: 'var(--muted)', fontStyle: 'italic',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {s.topic.trim()}
+                    </div>
+                  )}
                 </div>
-
-                <div style={{ paddingLeft: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <label className="field">
-                    <span className="field-label">persona owner</span>
-                    <select
-                      value={s.personaId}
-                      onChange={e => setShow(i, { personaId: e.target.value })}
-                      className="select"
-                    >
-                      <option value="">— pick persona —</option>
-                      {personas.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">music mood</span>
-                    <select
-                      value={s.mood}
-                      onChange={e => setShow(i, { mood: e.target.value })}
-                      className="select"
-                    >
-                      <option value="">— pick mood —</option>
-                      {moods.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </label>
-                </div>
-
-                <label className="field" style={{ paddingLeft: 8 }}>
-                  <span className="field-label">topic — fed to the DJ as the show theme</span>
-                  <textarea
-                    rows={2} value={s.topic} maxLength={TOPIC_MAX}
-                    onChange={e => setShow(i, { topic: e.target.value })}
-                    placeholder="e.g. slow ambient and modern classical — for the late shift"
-                    className="textarea"
-                  />
-                  <span className="field-hint">{s.topic.trim().length}/{TOPIC_MAX}</span>
-                </label>
-
-                <div style={{ paddingLeft: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {!ok && <Pill tone="accent">incomplete</Pill>}
                   {hrs > 0
                     ? <Pill tone="ink">{hrs}h / week</Pill>
                     : <Pill>unscheduled</Pill>}
-                  {!ok && <Pill tone="accent">needs name, persona &amp; mood</Pill>}
+                  <Btn sm onClick={() => openEdit(i)}>Edit</Btn>
+                  <Btn sm tone="danger" onClick={() => removeShow(i)} title="Remove this show">
+                    ✕
+                  </Btn>
                 </div>
               </div>
             );
@@ -467,6 +601,80 @@ export default function ShowsPanel() {
           )}
         </div>
       </Card>
+
+      {/* ── ADD / EDIT SHOW MODAL ────────────────────────────────────────── */}
+      <Modal
+        open={editIndex !== null}
+        onOpenChange={(o) => { if (!o) closeModal(); }}
+        title={editIndex === -1 ? 'New show' : 'Edit show'}
+        sub={editIndex === -1 ? 'define a show' : (draft?.name?.trim() || '')}
+        footer={draft && (
+          <>
+            <Btn onClick={closeModal}>Cancel</Btn>
+            <Btn tone="accent" onClick={commitDraft} disabled={!draftValid}>
+              {editIndex === -1 ? 'Add show' : 'Save changes'}
+            </Btn>
+          </>
+        )}
+      >
+        {draft && (
+          <div style={{ display: 'grid', gap: 14 }}>
+            <label className="field">
+              <span className="field-label">show name</span>
+              <input
+                type="text" value={draft.name} maxLength={NAME_MAX}
+                onChange={e => setDraftField({ name: e.target.value })}
+                className="input" placeholder="e.g. The Late Shift"
+                style={{ fontSize: 15, fontWeight: 700 }}
+                autoFocus
+              />
+              <span className="field-hint">{draft.name.trim().length}/{NAME_MAX}</span>
+            </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label className="field">
+                <span className="field-label">persona owner</span>
+                <select
+                  value={draft.personaId}
+                  onChange={e => setDraftField({ personaId: e.target.value })}
+                  className="select"
+                >
+                  <option value="">— pick persona —</option>
+                  {personas.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">music mood</span>
+                <select
+                  value={draft.mood}
+                  onChange={e => setDraftField({ mood: e.target.value })}
+                  className="select"
+                >
+                  <option value="">— pick mood —</option>
+                  {moods.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <label className="field">
+              <span className="field-label">topic — fed to the DJ as the show theme</span>
+              <textarea
+                rows={3} value={draft.topic} maxLength={TOPIC_MAX}
+                onChange={e => setDraftField({ topic: e.target.value })}
+                placeholder="e.g. slow ambient and modern classical — for the late shift"
+                className="textarea"
+              />
+              <span className="field-hint">{draft.topic.trim().length}/{TOPIC_MAX}</span>
+            </label>
+
+            {!draftValid && (
+              <div style={{ fontSize: 11, color: 'var(--danger)' }}>
+                A show needs a name, a persona, and a mood.
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 
@@ -474,13 +682,20 @@ export default function ShowsPanel() {
   function DayRow({ dayKey, label }) {
     return (
       <>
-        <span style={{
-          fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase',
-          fontWeight: 700, padding: '0 8px', alignSelf: 'center', textAlign: 'right',
-          color: dayKey === nowDay ? 'var(--accent)' : 'var(--ink)',
-        }}>
+        <button
+          type="button"
+          onClick={() => fillDay(dayKey)}
+          title={brush == null ? label : `Fill ${label} with the current brush`}
+          style={{
+            fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase',
+            fontWeight: 700, padding: '0 8px', alignSelf: 'stretch', textAlign: 'right',
+            color: dayKey === nowDay ? 'var(--accent)' : 'var(--ink)',
+            background: 'transparent', border: 'none', fontFamily: 'inherit',
+            cursor: brush == null ? 'default' : 'pointer',
+          }}
+        >
           {label}
-        </span>
+        </button>
         {HOURS.map(h => {
           const showId = form.schedule[dayKey][h];
           const show = showId ? showById(showId) : null;
@@ -489,7 +704,12 @@ export default function ShowsPanel() {
             <button
               key={h}
               type="button"
-              onClick={() => paintCell(dayKey, h)}
+              data-cell=""
+              data-day={dayKey}
+              data-hour={h}
+              onMouseDown={() => beginStroke(dayKey, h)}
+              onMouseEnter={() => extendStroke(dayKey, h)}
+              onTouchStart={() => beginStroke(dayKey, h)}
               title={
                 (show ? `${show.name} (${show.mood})` : `${label} ${String(h).padStart(2, '0')}:00 — empty`)
                 + (isNow ? ' · on air now' : '')
@@ -501,7 +721,8 @@ export default function ShowsPanel() {
                 color: show ? '#fff' : 'var(--muted)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase',
-                fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                fontWeight: 700, fontFamily: 'inherit',
+                cursor: brush == null ? 'default' : 'pointer',
                 position: 'relative', padding: 0,
               }}
             >
