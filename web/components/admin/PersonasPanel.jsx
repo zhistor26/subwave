@@ -20,6 +20,34 @@ const ENGINES = [
   { id: 'kokoro', label: 'Kokoro' },
   { id: 'cloud',  label: 'Cloud' },
 ];
+// Curated default voices per cloud provider. OpenAI voices are plain ids;
+// ElevenLabs ids are the stock library voice ids. A persona can still use any
+// other voice via the free-text override below the dropdown.
+const CLOUD_VOICES = {
+  openai: [
+    { id: 'alloy',   label: 'Alloy' },
+    { id: 'ash',     label: 'Ash' },
+    { id: 'ballad',  label: 'Ballad' },
+    { id: 'coral',   label: 'Coral' },
+    { id: 'echo',    label: 'Echo' },
+    { id: 'fable',   label: 'Fable' },
+    { id: 'nova',    label: 'Nova' },
+    { id: 'onyx',    label: 'Onyx' },
+    { id: 'sage',    label: 'Sage' },
+    { id: 'shimmer', label: 'Shimmer' },
+  ],
+  elevenlabs: [
+    { id: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel' },
+    { id: 'AZnzlk1XvdvUeBnXmlld', label: 'Domi' },
+    { id: 'EXAVITQu4vr4xnSDxMaL', label: 'Sarah' },
+    { id: 'ErXwobaYiN019PkySvjV', label: 'Antoni' },
+    { id: 'MF3mGyEYCl7XYWbV9V6O', label: 'Elli' },
+    { id: 'TxGEqnHWrfWFTfGW9XjX', label: 'Josh' },
+    { id: 'VR6AewLTigWG4xSOukaG', label: 'Arnold' },
+    { id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam' },
+    { id: 'yoZ06aMxZJJ28mfd3POQ', label: 'Sam' },
+  ],
+};
 const NAME_MAX = 40;
 const TAGLINE_MAX = 80;
 const SOUL_MAX = 400;
@@ -484,7 +512,18 @@ export default function PersonasPanel() {
               <Seg
                 value={focused.tts.engine}
                 options={ENGINES}
-                onChange={v => setPersonaTts(safeIdx, { engine: v })}
+                onChange={v => {
+                  // Switching into cloud, seed a valid default voice if the
+                  // current one isn't a known voice for the active provider.
+                  const patch = { engine: v };
+                  if (v === 'cloud') {
+                    const provVoices = CLOUD_VOICES[focused.tts.cloudProvider] || [];
+                    if (!provVoices.some(pv => pv.id === focused.tts.voice.trim())) {
+                      patch.voice = provVoices[0]?.id || focused.tts.voice;
+                    }
+                  }
+                  setPersonaTts(safeIdx, patch);
+                }}
               />
               <div className="field-hint">
                 Piper is local &amp; fast. Kokoro is more natural but slower. Cloud routes through OpenAI / ElevenLabs.
@@ -514,32 +553,60 @@ export default function PersonasPanel() {
               </div>
             )}
 
-            {focused.tts.engine === 'cloud' && (
-              <div className="stack-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div className="field">
-                  <label className="field-label">Cloud provider</label>
-                  <Seg
-                    value={focused.tts.cloudProvider}
-                    options={cloudProviders.map(id => ({ id, label: id }))}
-                    onChange={v => setPersonaTts(safeIdx, { cloudProvider: v })}
-                  />
-                  <div className="field-hint">Uses the shared API key + model from Settings.</div>
-                </div>
-                <div className="field">
-                  <label className="field-label">Cloud voice</label>
-                  <input
-                    className="input"
-                    value={focused.tts.voice}
-                    maxLength={100}
-                    onChange={e => setPersonaTts(safeIdx, { voice: e.target.value })}
-                    style={{ borderColor: focused.tts.voice.trim() ? 'var(--ink)' : 'var(--danger)' }}
-                  />
-                  <div className="field-hint">
-                    The voice id for the chosen provider, e.g. <code>alloy</code> (OpenAI) or an ElevenLabs voice id.
+            {focused.tts.engine === 'cloud' && (() => {
+              const provVoices = CLOUD_VOICES[focused.tts.cloudProvider] || [];
+              const voice = focused.tts.voice.trim();
+              const isPreset = provVoices.some(v => v.id === voice);
+              return (
+                <div className="stack-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="field">
+                    <label className="field-label">Cloud provider</label>
+                    <Seg
+                      value={focused.tts.cloudProvider}
+                      options={cloudProviders.map(id => ({ id, label: id }))}
+                      onChange={v => {
+                        // Switching provider invalidates the old voice id —
+                        // default to the new provider's first curated voice.
+                        const next = CLOUD_VOICES[v]?.[0]?.id || focused.tts.voice;
+                        setPersonaTts(safeIdx, { cloudProvider: v, voice: next });
+                      }}
+                    />
+                    <div className="field-hint">Uses the shared API key + model from Settings.</div>
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Cloud voice</label>
+                    <select
+                      className="select"
+                      value={isPreset ? voice : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value !== '__custom__') {
+                          setPersonaTts(safeIdx, { voice: e.target.value });
+                        }
+                      }}
+                    >
+                      {provVoices.map(v => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
+                      <option value="__custom__">Custom voice id…</option>
+                    </select>
+                    {!isPreset && (
+                      <input
+                        className="input"
+                        style={{ marginTop: 8, borderColor: voice ? 'var(--ink)' : 'var(--danger)' }}
+                        value={focused.tts.voice}
+                        maxLength={100}
+                        placeholder="Enter a custom voice id"
+                        onChange={e => setPersonaTts(safeIdx, { voice: e.target.value })}
+                      />
+                    )}
+                    <div className="field-hint">
+                      Pick a default voice, or choose <em>Custom voice id…</em> to enter your own
+                      (e.g. an OpenAI voice name or an ElevenLabs voice id).
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </Card>
 
           <Card title="Skills" sub="autonomous segments this persona runs">
