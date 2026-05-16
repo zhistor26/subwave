@@ -115,6 +115,10 @@ export function skillCatalog() {
     kind: s.kind,
     cooldownMs: s.cooldownMs || 0,
     enabled: enabledMap[s.name] !== false,
+    // `ready` is false when the skill needs an env key that isn't set.
+    // `requiresKey` names that key so the admin UI can tell the operator.
+    ready: typeof s.ready === 'function' ? !!s.ready() : true,
+    requiresKey: s.requiresKey || null,
   }));
 }
 

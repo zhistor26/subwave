@@ -97,11 +97,11 @@ router.get('/debug', requireAdmin, async (req, res) => {
   }
 
   // 6. Recent LLM calls — `llm` reflects the active provider/model resolved
-  // by the registry; `ollama.url` is still shown as the homelab endpoint.
+  // by the registry; `ollamaUrl` is the effective endpoint (settings or default).
   out.llm = {
     provider: llmProvider.providerName(),
     activeModel: llmProvider.activeModelLabel(),
-    ollamaUrl: config.ollama.url,
+    ollamaUrl: llmProvider.activeOllamaUrl(),
     recentCalls: dj.recentCalls,
   };
 

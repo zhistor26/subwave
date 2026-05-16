@@ -37,9 +37,12 @@ The model that writes DJ scripts and picks tracks.
 - **Provider** — `ollama` (homelab default, needs no key), `anthropic`,
   `openai`, `google`, `openrouter`, or `gateway`. Switching reroutes **every**
   LLM call — no redeploy.
-- **Model** — the model id for the chosen provider. For Ollama, leave blank to
-  use the `OLLAMA_MODEL` default; for cloud providers it is required, with a
-  hint giving the expected id format.
+- **Model** — the model id for the chosen provider, set here for every
+  provider including Ollama. Leave blank to use the built-in default
+  (`nemotron-3-super:cloud` for Ollama); for cloud providers a model is
+  required, with a hint giving the expected id format.
+- **Ollama server URL** *(Ollama only)* — where the Ollama server runs. Leave
+  blank to use the built-in default (`http://localhost:11434`).
 - For any non-Ollama provider, an **API key** banner reports whether the
   matching env var is present.
 - **Next-track picker** — choose how the DJ chooses the next track:

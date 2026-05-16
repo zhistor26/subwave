@@ -73,6 +73,7 @@ export default function SettingsPanel() {
       llm: {
         provider: data.values.llm?.provider ?? 'ollama',
         model: data.values.llm?.model ?? '',
+        ollamaUrl: data.values.llm?.ollamaUrl ?? '',
         pickerAgent: !!data.values.llm?.pickerAgent,
       },
     });
@@ -402,50 +403,22 @@ function KeyStatus({ envVar, present }) {
   );
 }
 
-/* Segmented engine picker built on the shared Seg primitive.
-   value is an engine name, or null when allowDefault and "use default". */
-function EngineSeg({ engines, available, value, onChange, allowDefault, defaultEngine }) {
-  const options = [];
-  if (allowDefault) options.push({ id: '__default__', label: `default · ${defaultEngine || 'piper'}` });
-  for (const e of engines) options.push({ id: e, label: e });
-  const selected = value == null ? '__default__' : value;
-
-  // Seg renders every option; disable unavailable engines by intercepting onChange.
-  return (
-    <div className="seg accent" style={{ flexWrap: 'wrap' }}>
-      {options.map(opt => {
-        const isEngine = opt.id !== '__default__';
-        const disabled = isEngine && available[opt.id] === false;
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            disabled={disabled}
-            className={opt.id === selected ? 'active' : ''}
-            onClick={() => onChange(opt.id === '__default__' ? null : opt.id)}
-            title={disabled ? `${opt.id} is not installed in this build` : opt.label}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ── TTS ─────────────────────────────────────────────────────────────── */
 
 function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
   const engines = data.tts.engines || ['piper'];
   const available = data.tts.available || {};
-  const hasCloud = engines.includes('cloud');
+  const ENGINE_LABELS = { piper: 'Piper', kokoro: 'Kokoro', cloud: 'Cloud' };
+  const engineOptions = engines.map(e => ({ id: e, label: ENGINE_LABELS[e] || e }));
 
   const save = () => saveSettings({
     tts: {
       defaultEngine: form.tts.defaultEngine,
       kokoro: { voice: form.tts.kokoro?.voice },
       cloud: {
-        enabled: form.tts.cloud.enabled,
+        // No "off" state — Cloud is configured-and-available whenever its
+        // API key is set; the real gate is the key, not a separate toggle.
+        enabled: true,
         provider: form.tts.cloud.provider,
         model: form.tts.cloud.model,
         voice: form.tts.cloud.voice,
@@ -455,15 +428,38 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
     },
   });
 
+  // Switch the Cloud provider, revalidating the voice + model ids — both are
+  // provider-specific, so an OpenAI id is invalid against ElevenLabs.
+  const selectCloudProvider = (f, provider) => {
+    const provVoices = CLOUD_VOICES[provider] || [];
+    const voice = provVoices.some(pv => pv.id === f.tts.cloud.voice.trim())
+      ? f.tts.cloud.voice
+      : (provVoices[0]?.id || f.tts.cloud.voice);
+    const provModels = CLOUD_MODELS[provider] || [];
+    const model = provModels.includes(f.tts.cloud.model.trim())
+      ? f.tts.cloud.model
+      : (provModels[0] || f.tts.cloud.model);
+    return { ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, enabled: true, provider, voice, model } } };
+  };
+
+  // Pick the station engine; choosing Cloud also primes its provider config.
+  const selectEngine = (engine) => setForm(f => {
+    const base = engine === 'cloud'
+      ? selectCloudProvider(f, f.tts.cloud.provider || 'openai')
+      : f;
+    return { ...base, tts: { ...base.tts, defaultEngine: engine } };
+  });
+
   return (
     <>
       <SectionHeader
         eyebrow="tts voice"
-        title="The default voice engine and cloud config."
+        title="Pick a voice engine, then configure it."
         sub={<>
           Every spoken segment is voiced by the <strong>persona on air</strong> — set each
-          persona’s engine and voice on the Personas page. This page sets the default engine
-          used for jingle rendering and as the fallback, plus the shared Cloud engine config.
+          persona’s engine and voice on the Personas page. Here you pick the station’s
+          default engine (used for jingles and as the fallback) and configure whichever
+          one you choose.
           {available.kokoro === false && (
             <span style={{ color: 'var(--danger)' }}> Kokoro is unavailable in this build.</span>
           )}
@@ -473,137 +469,131 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
         ]}
       />
 
-      {/* Station-level fallback — not per-persona */}
-      <Card title="Station TTS fallback" sub="jingle rendering + persona engine fallback">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18 }}>
-          <div className="field">
-            <label className="field-label">Default engine</label>
-            <EngineSeg
-              engines={engines}
-              available={available}
-              value={form.tts.defaultEngine}
-              onChange={v => setForm(f => ({ ...f, tts: { ...f.tts, defaultEngine: v || 'piper' } }))}
-              allowDefault={false}
-            />
-            <div className="field-hint">Renders jingles, and is the fallback if a persona’s engine fails.</div>
+      {/* One engine selector — then only that engine's settings show. */}
+      <Card title="Voice engine" sub="pick one — then configure it">
+        <div className="field">
+          <label className="field-label">Engine</label>
+          <Seg
+            accent
+            value={form.tts.defaultEngine}
+            options={engineOptions}
+            onChange={selectEngine}
+          />
+          <div className="field-hint">
+            The station default — renders jingles and is the fallback when a persona’s
+            own engine fails. Per-segment voice still comes from the persona on air.
           </div>
-          {(data.tts.kokoroVoices?.length || 0) > 0 && (
-            <div className="field">
-              <label className="field-label">Kokoro voice</label>
-              <select
-                className="select"
-                value={form.tts.kokoro?.voice ?? 'bf_isabella'}
-                onChange={e => setForm(f => ({
-                  ...f, tts: { ...f.tts, kokoro: { ...f.tts.kokoro, voice: e.target.value } },
-                }))}
-              >
-                {data.tts.kokoroVoices.map(v => (
-                  <option key={v.id} value={v.id}>{v.label} — {v.id}</option>
-                ))}
-              </select>
-              <div className="field-hint">British English only. Applies to every kind routed through Kokoro.</div>
-            </div>
-          )}
         </div>
-      </Card>
 
-      {/* Cloud engine */}
-      {hasCloud && (
-        <Card title="Cloud engine" sub="optional · routes to OpenAI / ElevenLabs">
-          <div className="field">
-            <label className="field-label">Provider</label>
-            <Seg
-              accent
-              value={form.tts.cloud.enabled ? form.tts.cloud.provider : 'off'}
-              options={[
-                { id: 'off', label: 'off' },
-                ...(data.tts.cloudProviders || ['openai', 'elevenlabs']).map(p => ({ id: p, label: p })),
-              ]}
-              onChange={v => setForm(f => {
-                if (v === 'off') {
-                  return { ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, enabled: false } } };
-                }
-                // Switching provider invalidates the old voice id — default to
-                // the new provider's first curated voice unless the current one
-                // is already valid for it.
-                const provVoices = CLOUD_VOICES[v] || [];
-                const voice = provVoices.some(pv => pv.id === f.tts.cloud.voice.trim())
-                  ? f.tts.cloud.voice
-                  : (provVoices[0]?.id || f.tts.cloud.voice);
-                // Model ids are provider-specific too — an OpenAI id is invalid
-                // against ElevenLabs. Keep the current model only if it's known
-                // for the new provider, else fall back to its default.
-                const provModels = CLOUD_MODELS[v] || [];
-                const model = provModels.includes(f.tts.cloud.model.trim())
-                  ? f.tts.cloud.model
-                  : (provModels[0] || f.tts.cloud.model);
-                return { ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, enabled: true, provider: v, voice, model } } };
-              })}
-            />
-            {!form.tts.cloud.enabled && (
-              <div className="field-hint">Cloud TTS is off — engine pickers won’t offer it. Pick a provider to enable.</div>
+        {/* ── PIPER ────────────────────────────────────────────────── */}
+        {form.tts.defaultEngine === 'piper' && (
+          <div className="field" style={{ marginTop: 16 }}>
+            <div className="field-hint">
+              Piper is bundled with the controller — fast, lightweight, and always
+              available. Nothing to configure.
+            </div>
+          </div>
+        )}
+
+        {/* ── KOKORO ───────────────────────────────────────────────── */}
+        {form.tts.defaultEngine === 'kokoro' && (
+          <div className="field" style={{ marginTop: 16 }}>
+            <label className="field-label">Kokoro voice</label>
+            {available.kokoro === false && (
+              <div className="field-hint" style={{ color: 'var(--danger)' }}>
+                Kokoro is not installed in this build — it will fall back to Piper.
+              </div>
+            )}
+            {(data.tts.kokoroVoices?.length || 0) > 0 ? (
+              <>
+                <select
+                  className="select"
+                  value={form.tts.kokoro?.voice ?? 'bf_isabella'}
+                  onChange={e => setForm(f => ({
+                    ...f, tts: { ...f.tts, kokoro: { ...f.tts.kokoro, voice: e.target.value } },
+                  }))}
+                >
+                  {data.tts.kokoroVoices.map(v => (
+                    <option key={v.id} value={v.id}>{v.label} — {v.id}</option>
+                  ))}
+                </select>
+                <div className="field-hint">British English only. Applies to every kind routed through Kokoro.</div>
+              </>
+            ) : (
+              <div className="field-hint">This build reports no Kokoro voices.</div>
             )}
           </div>
-          {form.tts.cloud.enabled && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 18, marginTop: 14 }}>
-                <div className="field">
-                  <label className="field-label">Model</label>
-                  <input
-                    className="input"
-                    value={form.tts.cloud.model}
-                    onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, model: e.target.value } } }))}
-                    placeholder={CLOUD_MODELS[form.tts.cloud.provider]?.[0] || 'gpt-4o-mini-tts'}
-                  />
-                  <div className="field-hint">e.g. “gpt-4o-mini-tts” (OpenAI) or “eleven_flash_v2_5” (ElevenLabs).</div>
-                </div>
-                {(() => {
-                  const provVoices = CLOUD_VOICES[form.tts.cloud.provider] || [];
-                  const voice = form.tts.cloud.voice.trim();
-                  const isPreset = provVoices.some(v => v.id === voice);
-                  return (
-                    <div className="field">
-                      <label className="field-label">Default voice</label>
-                      <select
-                        className="select"
-                        value={isPreset ? voice : '__custom__'}
-                        onChange={e => {
-                          if (e.target.value !== '__custom__') {
-                            setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }));
-                          }
-                        }}
-                      >
-                        {provVoices.map(v => (
-                          <option key={v.id} value={v.id}>{v.label}</option>
-                        ))}
-                        <option value="__custom__">Custom voice id…</option>
-                      </select>
-                      {!isPreset && (
-                        <input
-                          className="input"
-                          style={{ marginTop: 8, borderColor: voice ? 'var(--ink)' : 'var(--danger)' }}
-                          value={form.tts.cloud.voice}
-                          maxLength={100}
-                          placeholder="Enter a custom voice id"
-                          onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }))}
-                        />
-                      )}
-                      <div className="field-hint">
-                        Used when a Cloud persona hasn’t set its own voice. Pick a default, or choose
-                        <em> Custom voice id…</em> for any other OpenAI voice name / ElevenLabs voice id.
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-              <KeyStatus
-                envVar={form.tts.cloud.provider === 'elevenlabs' ? 'ELEVENLABS_API_KEY' : 'OPENAI_API_KEY'}
-                present={!!data.env?.[form.tts.cloud.provider === 'elevenlabs' ? 'ELEVENLABS_API_KEY' : 'OPENAI_API_KEY']}
+        )}
+
+        {/* ── CLOUD ────────────────────────────────────────────────── */}
+        {form.tts.defaultEngine === 'cloud' && (
+          <div style={{ marginTop: 16 }}>
+            <div className="field">
+              <label className="field-label">Provider</label>
+              <Seg
+                accent
+                value={form.tts.cloud.provider}
+                options={(data.tts.cloudProviders || ['openai', 'elevenlabs']).map(p => ({ id: p, label: p }))}
+                onChange={v => setForm(f => selectCloudProvider(f, v))}
               />
-            </>
-          )}
-        </Card>
-      )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 18, marginTop: 14 }}>
+              <div className="field">
+                <label className="field-label">Model</label>
+                <input
+                  className="input"
+                  value={form.tts.cloud.model}
+                  onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, model: e.target.value } } }))}
+                  placeholder={CLOUD_MODELS[form.tts.cloud.provider]?.[0] || 'gpt-4o-mini-tts'}
+                />
+                <div className="field-hint">e.g. “gpt-4o-mini-tts” (OpenAI) or “eleven_flash_v2_5” (ElevenLabs).</div>
+              </div>
+              {(() => {
+                const provVoices = CLOUD_VOICES[form.tts.cloud.provider] || [];
+                const voice = form.tts.cloud.voice.trim();
+                const isPreset = provVoices.some(v => v.id === voice);
+                return (
+                  <div className="field">
+                    <label className="field-label">Default voice</label>
+                    <select
+                      className="select"
+                      value={isPreset ? voice : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value !== '__custom__') {
+                          setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }));
+                        }
+                      }}
+                    >
+                      {provVoices.map(v => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
+                      <option value="__custom__">Custom voice id…</option>
+                    </select>
+                    {!isPreset && (
+                      <input
+                        className="input"
+                        style={{ marginTop: 8, borderColor: voice ? 'var(--ink)' : 'var(--danger)' }}
+                        value={form.tts.cloud.voice}
+                        maxLength={100}
+                        placeholder="Enter a custom voice id"
+                        onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }))}
+                      />
+                    )}
+                    <div className="field-hint">
+                      Used when a Cloud persona hasn’t set its own voice. Pick a default, or choose
+                      <em> Custom voice id…</em> for any other OpenAI voice name / ElevenLabs voice id.
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            <KeyStatus
+              envVar={form.tts.cloud.provider === 'elevenlabs' ? 'ELEVENLABS_API_KEY' : 'OPENAI_API_KEY'}
+              present={!!data.env?.[form.tts.cloud.provider === 'elevenlabs' ? 'ELEVENLABS_API_KEY' : 'OPENAI_API_KEY']}
+            />
+          </div>
+        )}
+      </Card>
 
       <SaveBar
         note="Applies to jingle rendering and the engine fallback · no mixer restart. Per-segment voice comes from the persona on air."
@@ -623,6 +613,7 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
     llm: {
       provider: form.llm.provider,
       model: form.llm.model,
+      ollamaUrl: form.llm.ollamaUrl,
       pickerAgent: form.llm.pickerAgent,
       // The API key is never set from the UI — it comes from the controller's
       // environment (ANTHROPIC_API_KEY / OPENAI_API_KEY / AI_GATEWAY_API_KEY).
@@ -656,12 +647,12 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
               className="input"
               value={form.llm.model}
               onChange={e => setForm(f => ({ ...f, llm: { ...f.llm, model: e.target.value } }))}
-              placeholder={form.llm.provider === 'ollama' ? '(OLLAMA_MODEL default)' : 'model id'}
+              placeholder={form.llm.provider === 'ollama' ? 'nemotron-3-super:cloud' : 'model id'}
               style={{ maxWidth: 360 }}
             />
             <div className="field-hint">
               {form.llm.provider === 'ollama'
-                ? 'Leave blank to use the OLLAMA_MODEL default.'
+                ? 'Ollama model tag, e.g. “nemotron-3-super:cloud”. Leave blank for the default.'
                 : form.llm.provider === 'gateway'
                   ? 'Gateway model id, e.g. “anthropic/claude-sonnet-4-5”.'
                   : form.llm.provider === 'openrouter'
@@ -671,6 +662,23 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
                       : 'Model id for the chosen provider — required.'}
             </div>
           </div>
+
+          {form.llm.provider === 'ollama' && (
+            <div className="field">
+              <label className="field-label">Ollama server URL</label>
+              <input
+                className="input"
+                value={form.llm.ollamaUrl}
+                onChange={e => setForm(f => ({ ...f, llm: { ...f.llm, ollamaUrl: e.target.value } }))}
+                placeholder="http://localhost:11434"
+                style={{ maxWidth: 360 }}
+              />
+              <div className="field-hint">
+                Where the Ollama server runs. Leave blank for the default
+                (<code>http://localhost:11434</code>).
+              </div>
+            </div>
+          )}
 
           {form.llm.provider !== 'ollama' && (
             <KeyStatus

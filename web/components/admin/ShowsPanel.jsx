@@ -357,7 +357,18 @@ export default function ShowsPanel() {
           display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, alignItems: 'center',
         }}>
           <div>
-            <Eyebrow color="var(--accent)">shows · weekly grid</Eyebrow>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <Eyebrow color="var(--accent)">shows · weekly grid</Eyebrow>
+              <span className="mono-num" style={{
+                fontSize: 12, fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.04em',
+              }}>
+                {now.toLocaleDateString('en-GB', {
+                  weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+                })}
+                {' · '}
+                {now.toLocaleTimeString('en-GB', { hour12: false })}
+              </span>
+            </div>
             <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 6 }}>
               Programme the week, one hour at a time.
             </div>

@@ -124,11 +124,9 @@ export default function DashPanel() {
       {/* ── HEADER STRIP ───────────────────────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-        paddingBottom: 12, borderBottom: '1px solid var(--ink)',
       }}>
         <span className="live-dot" style={{ background: err ? 'var(--danger)' : 'var(--accent)' }} />
         <Eyebrow color={err ? 'var(--danger)' : 'var(--accent)'}>{err ? 'down' : 'live'}</Eyebrow>
-        <span className="caption">dj command center</span>
         {feedback && (
           <span style={{
             marginLeft: 'auto', fontSize: 11,
@@ -300,18 +298,22 @@ export default function DashPanel() {
                     key={s.type}
                     disabled={!!busy}
                     onClick={() => act(k, '/dj/segment', { type: s.type }, s.label)}
+                    onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'color-mix(in oklab, var(--accent) 18%, transparent)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'color-mix(in oklab, var(--accent) 8%, transparent)'; }}
                     style={{
-                      border: '1px solid var(--ink)', background: 'transparent',
+                      border: '1px solid var(--accent)',
+                      background: 'color-mix(in oklab, var(--accent) 8%, transparent)',
                       padding: '12px 10px', textAlign: 'left', fontFamily: 'inherit',
                       display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--ink)',
                       cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.4 : 1,
+                      transition: 'background 0.12s ease',
                     }}
                   >
                     <span style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
                       {s.label}
                     </span>
-                    <span className="caption" style={{ fontSize: 9 }}>
-                      {busy === k ? 'firing…' : 'ready'}
+                    <span className="caption" style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 700 }}>
+                      {busy === k ? 'firing…' : 'fire ▸'}
                     </span>
                   </button>
                 );
