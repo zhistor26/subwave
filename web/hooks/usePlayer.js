@@ -7,7 +7,7 @@ const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL || '/stream.mp3';
 // Owns the <audio> element + tune-in state. The audioRef must be attached to
 // an <audio> tag rendered by the consumer (so the Waveform's Web Audio API
 // can also reach it).
-export function usePlayer({ initialVolume = 0.8 } = {}) {
+export function usePlayer({ initialVolume = 1 } = {}) {
   const audioRef = useRef(null);
   const [tunedIn, setTunedIn] = useState(false);
   const [volume, setVolume] = useState(initialVolume);
