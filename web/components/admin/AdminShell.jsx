@@ -6,6 +6,7 @@ import { useCallback, useEffect } from 'react';
 import { useAdminAuth } from '../../lib/adminAuth';
 import { useStationFeed } from '../../hooks/useStationFeed';
 import SignInForm from './SignInForm';
+import ThemeToggle from './ThemeToggle';
 import { Toaster } from '../ui/toaster';
 
 const NAV = [
@@ -117,6 +118,7 @@ function ShellHeader({ pathname, signedIn, onSignOut }) {
           <Link href="/" className="caption" style={{ color: 'var(--muted)', textDecoration: 'none' }}>
             ← player
           </Link>
+          <ThemeToggle />
           {onSignOut && (
             <button className="sign-out" onClick={onSignOut}>sign out</button>
           )}
@@ -127,6 +129,7 @@ function ShellHeader({ pathname, signedIn, onSignOut }) {
           <Link href="/" className="caption" style={{ color: 'var(--muted)', textDecoration: 'none' }}>
             ← player
           </Link>
+          <ThemeToggle />
         </span>
       )}
     </header>
