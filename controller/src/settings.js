@@ -125,7 +125,9 @@ const DEFAULTS = {
     // Cloud engine config — used when an engine resolves to 'cloud'. A persona
     // chooses provider+voice; `model` and `apiKey` stay shared here. `apiKey`
     // empty means "read the provider's env var" (OPENAI_API_KEY etc.).
-    cloud: { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'alloy', apiKey: '' },
+    // `enabled` is the operator's "Off" switch — when false the cloud engine
+    // reports unavailable regardless of key, so the engine pickers grey it out.
+    cloud: { enabled: false, provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'alloy', apiKey: '' },
   },
   llm: {
     provider: 'ollama',
@@ -325,6 +327,11 @@ export async function load() {
           : DEFAULTS.tts.kokoro.voice,
       },
       cloud: {
+        // Explicit boolean wins; otherwise an install that already had a saved
+        // cloud key keeps cloud on so the upgrade doesn't silently disable it.
+        enabled: typeof stored.tts?.cloud?.enabled === 'boolean'
+          ? stored.tts.cloud.enabled
+          : !!(stored.tts?.cloud?.apiKey),
         provider: TTS_CLOUD_PROVIDERS.includes(stored.tts?.cloud?.provider)
           ? stored.tts.cloud.provider
           : DEFAULTS.tts.cloud.provider,
@@ -573,6 +580,9 @@ export async function update(patch) {
     }
     if (t.cloud !== undefined) {
       const c = t.cloud || {};
+      if (c.enabled !== undefined) {
+        next.tts.cloud.enabled = !!c.enabled;
+      }
       if (c.provider !== undefined) {
         if (!TTS_CLOUD_PROVIDERS.includes(c.provider)) {
           throw new Error(`tts.cloud.provider must be one of: ${TTS_CLOUD_PROVIDERS.join(', ')}`);

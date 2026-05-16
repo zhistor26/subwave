@@ -78,6 +78,7 @@ export default function SettingsPanel() {
         byKind: { ...(data.values.tts?.byKind || {}) },
         kokoro: { voice: data.values.tts?.kokoro?.voice ?? 'bf_isabella' },
         cloud: {
+          enabled: data.values.tts?.cloud?.enabled ?? false,
           provider: data.values.tts?.cloud?.provider ?? 'openai',
           model: data.values.tts?.cloud?.model ?? '',
           voice: data.values.tts?.cloud?.voice ?? '',
@@ -428,6 +429,7 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
       byKind: form.tts.byKind,
       kokoro: { voice: form.tts.kokoro?.voice },
       cloud: {
+        enabled: form.tts.cloud.enabled,
         provider: form.tts.cloud.provider,
         model: form.tts.cloud.model,
         voice: form.tts.cloud.voice,
@@ -528,56 +530,74 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
       {/* Cloud engine */}
       {hasCloud && (
         <Card title="Cloud engine" sub="optional · routes to OpenAI / ElevenLabs">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 18 }}>
-            <div className="field">
-              <label className="field-label">Provider</label>
-              <Seg
-                accent
-                value={form.tts.cloud.provider}
-                options={(data.tts.cloudProviders || ['openai', 'elevenlabs']).map(p => ({ id: p, label: p }))}
-                onChange={v => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, provider: v } } }))}
-              />
-            </div>
-            <div className="field">
-              <label className="field-label">Model</label>
-              <input
-                className="input"
-                value={form.tts.cloud.model}
-                onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, model: e.target.value } } }))}
-                placeholder="gpt-4o-mini-tts"
-              />
-              <div className="field-hint">e.g. “gpt-4o-mini-tts” (OpenAI) or “eleven_flash_v2_5” (ElevenLabs).</div>
-            </div>
-            <div className="field">
-              <label className="field-label">Default voice</label>
-              <input
-                className="input"
-                value={form.tts.cloud.voice}
-                onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }))}
-                placeholder="alloy"
-              />
-              <div className="field-hint">OpenAI: alloy, nova, … — ElevenLabs: a voice ID.</div>
-            </div>
+          <div className="field">
+            <label className="field-label">Provider</label>
+            <Seg
+              accent
+              value={form.tts.cloud.enabled ? form.tts.cloud.provider : 'off'}
+              options={[
+                { id: 'off', label: 'off' },
+                ...(data.tts.cloudProviders || ['openai', 'elevenlabs']).map(p => ({ id: p, label: p })),
+              ]}
+              onChange={v => setForm(f => ({
+                ...f,
+                tts: {
+                  ...f.tts,
+                  cloud: v === 'off'
+                    ? { ...f.tts.cloud, enabled: false }
+                    : { ...f.tts.cloud, enabled: true, provider: v },
+                },
+              }))}
+            />
+            {!form.tts.cloud.enabled && (
+              <div className="field-hint">Cloud TTS is off — engine pickers won’t offer it. Pick a provider to enable.</div>
+            )}
           </div>
-          <div className="field" style={{ marginTop: 14 }}>
-            <label className="field-label">API key</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                className="input"
-                type="password"
-                value={form.tts.cloud.apiKey}
-                onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, apiKey: e.target.value } } }))}
-                placeholder={form.tts.cloud.apiKeySet ? '•••••••• (set)' : 'paste key'}
-                style={{ flex: 1, minWidth: 240, maxWidth: 360 }}
-              />
-              {form.tts.cloud.apiKeySet && <Pill tone="accent" dot>set</Pill>}
-            </div>
-            <div className="field-hint">
-              {form.tts.cloud.apiKeySet
-                ? 'A key is set. Leave blank to keep it; type to replace.'
-                : 'Or set OPENAI_API_KEY / ELEVENLABS_API_KEY in the environment.'}
-            </div>
-          </div>
+          {form.tts.cloud.enabled && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 18, marginTop: 14 }}>
+                <div className="field">
+                  <label className="field-label">Model</label>
+                  <input
+                    className="input"
+                    value={form.tts.cloud.model}
+                    onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, model: e.target.value } } }))}
+                    placeholder="gpt-4o-mini-tts"
+                  />
+                  <div className="field-hint">e.g. “gpt-4o-mini-tts” (OpenAI) or “eleven_flash_v2_5” (ElevenLabs).</div>
+                </div>
+                <div className="field">
+                  <label className="field-label">Default voice</label>
+                  <input
+                    className="input"
+                    value={form.tts.cloud.voice}
+                    onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }))}
+                    placeholder="alloy"
+                  />
+                  <div className="field-hint">OpenAI: alloy, nova, … — ElevenLabs: a voice ID.</div>
+                </div>
+              </div>
+              <div className="field" style={{ marginTop: 14 }}>
+                <label className="field-label">API key</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    className="input"
+                    type="password"
+                    value={form.tts.cloud.apiKey}
+                    onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, apiKey: e.target.value } } }))}
+                    placeholder={form.tts.cloud.apiKeySet ? '•••••••• (set)' : 'paste key'}
+                    style={{ flex: 1, minWidth: 240, maxWidth: 360 }}
+                  />
+                  {form.tts.cloud.apiKeySet && <Pill tone="accent" dot>set</Pill>}
+                </div>
+                <div className="field-hint">
+                  {form.tts.cloud.apiKeySet
+                    ? 'A key is set. Leave blank to keep it; type to replace.'
+                    : 'Or set OPENAI_API_KEY / ELEVENLABS_API_KEY in the environment.'}
+                </div>
+              </div>
+            </>
+          )}
         </Card>
       )}
 
@@ -717,8 +737,8 @@ function MixerSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
     <>
       <SectionHeader
         eyebrow="mixer"
-        title="Crossfade and the DJ’s weather context."
-        sub="Crossfade overlap shapes every track transition. Weather location drives the Open-Meteo lookups the DJ reads on air."
+        title="Crossfade and where the station broadcasts from."
+        sub="Crossfade overlap shapes every track transition. The station location sets where the DJ thinks it broadcasts from and drives the Open-Meteo weather it reads on air."
         metrics={[
           { n: `${data.values?.crossfadeDuration}s`, l: 'crossfade', accent: true },
         ]}
@@ -749,7 +769,7 @@ function MixerSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
         </div>
       </Card>
 
-      <Card title="Weather location" sub="Open-Meteo + DJ context">
+      <Card title="Station location" sub="DJ context + Open-Meteo weather">
         <div className="field">
           <label className="field-label">Location</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -780,13 +800,14 @@ function MixerSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
             />
           </div>
           <div className="field-hint">
-            Used for DJ context + Open-Meteo lookups (current: {data.values?.weather?.locationName} @ {data.values?.weather?.lat}, {data.values?.weather?.lng}). Applies live.
+            Where the station broadcasts from — sets the DJ’s {'{location}'} and the Open-Meteo
+            weather it reads on air (current: {data.values?.weather?.locationName} @ {data.values?.weather?.lat}, {data.values?.weather?.lng}). Applies live.
           </div>
         </div>
       </Card>
 
       <SaveBar
-        note="Weather location applies live · Crossfade requires a mixer restart (danger zone)."
+        note="Station location applies live · Crossfade requires a mixer restart (danger zone)."
         busy={busy}
         saveMsg={saveMsg}
         onSave={save}

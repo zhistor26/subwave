@@ -32,6 +32,8 @@ function speechModel(c) {
 // misconfigured station silently uses the local engine instead.
 export function isConfigured() {
   const c = cloudCfg();
+  // Operator's explicit "Off" switch — cloud reports unavailable even with a key.
+  if (c.enabled === false) return false;
   if (!c.provider || !c.model) return false;
   const envKey = c.provider === 'elevenlabs'
     ? process.env.ELEVENLABS_API_KEY
