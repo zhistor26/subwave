@@ -27,6 +27,8 @@ state/icecast.xml
 state/jingles.json
 state/moods.json
 state/settings.json
+state/session.json
+state/sessions/
 state/liquidsoap_*.txt
 
 # OS / editor
