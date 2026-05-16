@@ -24,8 +24,8 @@ Hard rules:
 - Reference the actual context (time, weather, what's coming) naturally.
 - Vary your opener and shape every time — never start the same way twice in a row, never use the same metaphor or framing as your last few lines.`;
 
-// Seed souls — one becomes each persona's `soul` on first run / migration.
-// A legacy single DJ with N souls migrates to N personas, one soul each.
+// Seed souls — the SEED_PERSONAS roster picks from these, and djSystem() falls
+// back to DJ_SOULS[0] when a persona has no soul of its own.
 export const DJ_SOULS = [
   'warm, slightly understated, never corny — late-night BBC 6 Music presenter; observant, dry humour, specific',
   'thoughtful and a little wistful; finds small details in tracks and rooms; favours one well-chosen image over a list',
@@ -83,9 +83,6 @@ const SKILL_SLUG_RE = /^[a-z0-9-]{1,40}$/;
 
 const PERSONA_LIMIT = 12;
 const SHOWS_LIMIT = 64;
-const SOULS_LIMIT = 10;
-const SOUL_MIN = 1;
-const SOUL_MAX = 400;
 const SKILLS_PER_PERSONA_LIMIT = 20;
 
 // Server-minted opaque id, e.g. mintId('p_') -> 'p_a1b2c3'.
@@ -101,6 +98,39 @@ function emptyWeek() {
   return week;
 }
 
+// Seed roster — three distinct DJs shipped on a fresh install (and used as the
+// migration fallback when a legacy `dj` block carries no real souls). Distinct
+// names, taglines, souls and talk frequency — a real roster, not clones of one
+// DJ. Engine stays `piper` (local, needs no key); each persona's stored `voice`
+// is a different British Kokoro voice, so switching to the Kokoro engine yields
+// genuinely different-sounding DJs without any further editing.
+export const SEED_PERSONAS = [
+  {
+    id: 'p_default0',
+    name: 'Marlowe',
+    tagline: 'Late-night company and well-chosen records.',
+    frequency: 'moderate',
+    soul: DJ_SOULS[0],
+    tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bm_george' },
+  },
+  {
+    id: 'p_default1',
+    name: 'Wren',
+    tagline: 'Small details, quiet rooms, one good image.',
+    frequency: 'quiet',
+    soul: DJ_SOULS[1],
+    tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bf_alice' },
+  },
+  {
+    id: 'p_default2',
+    name: 'Hale',
+    tagline: 'Says less, means more. Leaves space.',
+    frequency: 'moderate',
+    soul: DJ_SOULS[3],
+    tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bm_daniel' },
+  },
+];
+
 const DEFAULTS = {
   jingleRatio: 30,                    // 1 jingle per N music tracks
   crossfadeDuration: 10.0,            // seconds
@@ -109,15 +139,8 @@ const DEFAULTS = {
   djPrompt: '',
   // The persona roster. One persona is "active" at a time (activePersonaId);
   // a scheduled show can override which persona is on-air for its hour.
-  personas: [{
-    id: 'p_default0',
-    name: 'Frequency',
-    tagline: '',
-    frequency: 'moderate',
-    soul: DJ_SOULS[0],
-    tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bf_isabella' },
-  }],
-  activePersonaId: 'p_default0',
+  personas: SEED_PERSONAS,
+  activePersonaId: SEED_PERSONAS[0].id,
   // Reusable show definitions, placed into the weekly schedule grid.
   shows: [],
   // 7-day x 24-hour grid of showId|null. An empty hour = run autonomously.
@@ -158,22 +181,6 @@ const BOUNDS = {
 let cache = null;
 
 // ── normalizers (lenient — used by load(), clamp/default rather than throw) ──
-
-function normalizeSouls(raw) {
-  if (!Array.isArray(raw)) return null;
-  const seen = new Set();
-  const out = [];
-  for (const item of raw) {
-    if (typeof item !== 'string') continue;
-    const v = item.trim();
-    if (v.length < SOUL_MIN || v.length > SOUL_MAX) continue;
-    if (seen.has(v)) continue;
-    seen.add(v);
-    out.push(v);
-    if (out.length >= SOULS_LIMIT) break;
-  }
-  return out;
-}
 
 // Persona skill assignment. `null` (raw not an array) is the "all skills"
 // sentinel — used by legacy personas and the code default so behaviour is
@@ -272,22 +279,6 @@ function normalizeSchedule(raw, showIds) {
   return week;
 }
 
-// Derive a persona TTS block from the legacy global `tts` settings — used to
-// migrate a single legacy DJ into a roster of personas.
-function deriveTtsFromLegacy(tts) {
-  const engine = TTS_ENGINES.includes(tts?.defaultEngine) ? tts.defaultEngine : 'piper';
-  const cloudProvider = TTS_CLOUD_PROVIDERS.includes(tts?.cloud?.provider) ? tts.cloud.provider : 'openai';
-  let voice;
-  if (engine === 'kokoro') {
-    voice = KOKORO_VOICE_RE.test(tts?.kokoro?.voice || '') ? tts.kokoro.voice : 'bf_isabella';
-  } else if (engine === 'cloud') {
-    voice = (typeof tts?.cloud?.voice === 'string' && tts.cloud.voice.trim()) ? tts.cloud.voice.trim() : 'alloy';
-  } else {
-    voice = 'bf_isabella';
-  }
-  return { engine, cloudProvider, voice };
-}
-
 export async function load() {
   if (cache) return cache;
   let stored = {};
@@ -295,25 +286,11 @@ export async function load() {
     try { stored = JSON.parse(await readFile(SETTINGS_PATH, 'utf8')); } catch {}
   }
 
-  // ── personas (with idempotent legacy `dj` migration) ──────────────────────
-  let personas = normalizePersonaArray(stored.personas);
-  if (!personas) {
-    if (stored.dj && typeof stored.dj === 'object') {
-      // Migrate a single legacy DJ to one persona per soul.
-      const souls = normalizeSouls(stored.dj.souls);
-      const soulList = (souls && souls.length) ? souls : [...DJ_SOULS];
-      const ttsBlock = deriveTtsFromLegacy(stored.tts);
-      const name = (typeof stored.dj.name === 'string' && stored.dj.name.trim())
-        ? stored.dj.name.trim().slice(0, 40) : 'Frequency';
-      const frequency = FREQUENCIES.includes(stored.dj.frequency) ? stored.dj.frequency : 'moderate';
-      personas = soulList.map(soul => ({
-        id: mintId('p_'), name, tagline: '', frequency,
-        soul: soul.slice(0, 400), tts: { ...ttsBlock },
-      }));
-    } else {
-      personas = DEFAULTS.personas.map(p => ({ ...p, tts: { ...p.tts } }));
-    }
-  }
+  // ── personas ──────────────────────────────────────────────────────────────
+  // No valid persona roster in settings.json (fresh install) → ship the seed
+  // roster of three distinct DJs.
+  const personas = normalizePersonaArray(stored.personas)
+    || DEFAULTS.personas.map(p => ({ ...p, tts: { ...p.tts } }));
   const personaIds = personas.map(p => p.id);
 
   const activePersonaId = personaIds.includes(stored.activePersonaId)
