@@ -2,8 +2,9 @@
 
 // Library — /admin/library. The operator searches the Navidrome library and
 // pushes a chosen track straight into the queue (an admin-grade version of
-// the listener request flow, without the LLM matching guesswork).
-import { useState } from 'react';
+// the listener request flow, without the LLM matching guesswork). A "Latest
+// tracks" section surfaces the most recently added music for one-click queuing.
+import { useCallback, useEffect, useState } from 'react';
 import { useAdminAuth } from '../../lib/adminAuth';
 
 export default function LibraryPanel() {
@@ -13,8 +14,28 @@ export default function LibraryPanel() {
   const [searching, setSearching] = useState(false);
   const [queuing, setQueuing] = useState(null);   // id of the row being queued
   const [feedback, setFeedback] = useState(null); // { tone, text }
+  const [recent, setRecent] = useState(null);     // null = not loaded yet
+  const [loadingRecent, setLoadingRecent] = useState(false);
 
   const ready = hydrated && !needsAuth;
+
+  const loadRecent = useCallback(async () => {
+    if (!ready) return;
+    setLoadingRecent(true);
+    try {
+      const r = await adminFetch('/dj/recent?limit=25');
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `latest tracks failed (${r.status})`);
+      setRecent(Array.isArray(j.results) ? j.results : []);
+    } catch (err) {
+      setFeedback({ tone: 'err', text: err.message });
+      setRecent([]);
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, [adminFetch, ready]);
+
+  useEffect(() => { loadRecent(); }, [loadRecent]);
 
   const runSearch = async (e) => {
     e?.preventDefault();
@@ -101,36 +122,67 @@ export default function LibraryPanel() {
           ) : results.length === 0 ? (
             <Empty>no tracks found</Empty>
           ) : (
-            <ul className="space-y-1">
-              {results.map(t => (
-                <li key={t.id} className="flex items-center gap-3">
-                  <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
-                    {t.title} <span style={{ color: 'var(--muted)' }}>— {t.artist}</span>
-                    {t.album && <span style={{ color: 'var(--muted)' }}> · {t.album}</span>}
-                  </span>
-                  {t.duration != null && (
-                    <span className="v3-tab-num shrink-0" style={{ color: 'var(--muted)' }}>
-                      {fmtDuration(t.duration)}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => queueTrack(t)}
-                    disabled={!!queuing}
-                    className="v3-eyebrow v3-focus cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={{
-                      border: '1px solid var(--ink)', background: 'transparent',
-                      color: 'var(--ink)', padding: '5px 12px', fontSize: 10,
-                    }}
-                  >
-                    {queuing === t.id ? 'queuing…' : 'queue'}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <TrackList tracks={results} queuing={queuing} onQueue={queueTrack} />
           )}
         </div>
       </Section>
+
+      <Section
+        title="Latest tracks"
+        action={
+          <button
+            onClick={loadRecent}
+            disabled={loadingRecent || !ready}
+            className="v3-eyebrow v3-focus cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              border: '1px solid var(--ink)', background: 'transparent',
+              color: 'var(--ink)', padding: '3px 10px', fontSize: 9,
+            }}
+          >
+            {loadingRecent ? 'loading…' : 'refresh'}
+          </button>
+        }
+      >
+        {recent === null ? (
+          <Empty>{loadingRecent ? 'loading latest tracks…' : 'recently added tracks appear here'}</Empty>
+        ) : recent.length === 0 ? (
+          <Empty>no recently added tracks</Empty>
+        ) : (
+          <TrackList tracks={recent} queuing={queuing} onQueue={queueTrack} />
+        )}
+      </Section>
     </div>
+  );
+}
+
+function TrackList({ tracks, queuing, onQueue }) {
+  return (
+    <ul className="space-y-1">
+      {tracks.map(t => (
+        <li key={t.id} className="flex items-center gap-3">
+          <span className="truncate flex-1" style={{ color: 'var(--ink)' }}>
+            {t.title} <span style={{ color: 'var(--muted)' }}>— {t.artist}</span>
+            {t.album && <span style={{ color: 'var(--muted)' }}> · {t.album}</span>}
+          </span>
+          {t.duration != null && (
+            <span className="v3-tab-num shrink-0" style={{ color: 'var(--muted)' }}>
+              {fmtDuration(t.duration)}
+            </span>
+          )}
+          <button
+            onClick={() => onQueue(t)}
+            disabled={!!queuing}
+            className="v3-eyebrow v3-focus cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              border: '1px solid var(--ink)', background: 'transparent',
+              color: 'var(--ink)', padding: '5px 12px', fontSize: 10,
+            }}
+          >
+            {queuing === t.id ? 'queuing…' : 'queue'}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -139,11 +191,12 @@ function fmtDuration(s) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 }
 
-function Section({ title, children }) {
+function Section({ title, action, children }) {
   return (
     <section style={{ border: '1px solid var(--ink)' }}>
-      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--ink)' }}>
+      <div className="flex items-center gap-3 px-3 py-2" style={{ borderBottom: '1px solid var(--ink)' }}>
         <span className="v3-caption" style={{ color: 'var(--ink)' }}>{title}</span>
+        {action && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>
       <div className="p-3">{children}</div>
     </section>

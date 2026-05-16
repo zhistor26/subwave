@@ -168,6 +168,35 @@ router.get('/dj/search', requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /dj/recent — most recently added tracks, for the manual queue UI.
+// Navidrome only sorts albums by recency, so we expand the newest albums into
+// their songs and flatten. Results are queue-ready /dj/search-shaped objects.
+// ---------------------------------------------------------------------------
+router.get('/dj/recent', requireAdmin, async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query?.limit, 10) || 20, 1), 50);
+  try {
+    const albums = await subsonic.getRecentlyAddedAlbums({ size: limit });
+    const songLists = await Promise.all(
+      albums.map(a => subsonic.getAlbum(a.id).catch(() => [])),
+    );
+    const results = songLists.flat().slice(0, limit).map(s => ({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      album: s.album,
+      year: s.year ?? null,
+      genre: s.genre ?? null,
+      duration: s.duration ?? null,
+      path: s.path ?? null,
+    }));
+    res.json({ results });
+  } catch (err) {
+    queue.log('error', `/dj/recent failed: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /dj/queue-track — push a specific track to the queue (operator pick)
 // Body: { id, title, artist, album, year?, genre? } — a /dj/search result.
 // No DJ intro is generated; an auto-link still fires if auto-link is on.
