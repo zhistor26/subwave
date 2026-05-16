@@ -16,12 +16,20 @@ export function usePlayer({ initialVolume = 0.8 } = {}) {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
+  // Tear down playback. Used by the Tune Out button and by PlayerApp when the
+  // station goes off air, so the <audio> element isn't left retrying a dead
+  // mount.
+  const stop = () => {
+    if (!audioRef.current) return;
+    audioRef.current.pause();
+    audioRef.current.src = '';
+    setTunedIn(false);
+  };
+
   const tune = () => {
     if (!audioRef.current) return;
     if (tunedIn) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      setTunedIn(false);
+      stop();
     } else {
       audioRef.current.src = `${STREAM_URL}?t=${Date.now()}`;
       audioRef.current.volume = volume;
@@ -30,5 +38,5 @@ export function usePlayer({ initialVolume = 0.8 } = {}) {
     }
   };
 
-  return { audioRef, tunedIn, volume, setVolume, tune };
+  return { audioRef, tunedIn, volume, setVolume, tune, stop };
 }

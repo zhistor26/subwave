@@ -12,6 +12,9 @@ export function useStationFeed() {
   const [dj, setDj] = useState(null);
   const [activeShow, setActiveShow] = useState(null);
   const [listeners, setListeners] = useState(null);
+  // null = not yet known; true/false once /now-playing reports it. Starts null
+  // so the player doesn't flash "offline" before the first poll resolves.
+  const [streamOnline, setStreamOnline] = useState(null);
   const [state, setState] = useState({ upcoming: [], history: [], djLog: [] });
   const [elapsed, setElapsed] = useState(0);
   const trackStartRef = useRef(null);
@@ -34,6 +37,7 @@ export function useStationFeed() {
         // activeShow is { name, persona:{name} } | null — null = no show this hour.
         setActiveShow(npRes.activeShow ?? npRes.context?.activeShow ?? null);
         if (npRes.listeners) setListeners(npRes.listeners);
+        if (typeof npRes.streamOnline === 'boolean') setStreamOnline(npRes.streamOnline);
         setState(stRes);
       } catch {}
     };
@@ -54,5 +58,5 @@ export function useStationFeed() {
   const duration = nowPlaying?.duration ?? 0;
   const progress = duration > 0 ? Math.min(1, elapsed / duration) : 0;
 
-  return { nowPlaying, context, dj, activeShow, listeners, state, elapsed, progress };
+  return { nowPlaying, context, dj, activeShow, listeners, streamOnline, state, elapsed, progress };
 }
