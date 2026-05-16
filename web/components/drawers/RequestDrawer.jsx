@@ -3,6 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const SUCCESS_HOLD_MS = 2800;
+const POLL_INTERVAL_MS = 1500;
+const POLL_DEADLINE_MS = 60000;
+
+// Instant, no-LLM acknowledgement shown the moment the booth accepts the
+// request — so there's zero dead time before the listener gets feedback. The
+// real on-air ack from the DJ replaces it once the pick resolves.
+function templatedAck(name) {
+  const n = (name || '').trim();
+  return n
+    ? `Got it, ${n} — taking it to the booth.`
+    : `Got it — taking it to the booth.`;
+}
 
 // Pull a handful of context-aware suggestion chips out of what's already
 // on-air. Each chip carries an attribution so the listener understands why
@@ -63,32 +75,89 @@ function buildSuggestions(nowPlaying, context) {
 export default function RequestDrawer({
   requestText, setRequestText,
   requesterName, setRequesterName,
-  isSubmitting, onSubmit, onClose,
+  isSubmitting, onSubmit, onPoll, onClose,
   nowPlaying, context,
 }) {
   const taRef = useRef(null);
-  // `result` mirrors the controller response: { success, ack, track, message }.
-  // Null while idle; rendered as a success card or inline miss banner.
+  // `result` drives the render: { success, pending, ack, track, message }.
+  // Null while idle. On accept it's a `pending` success card showing the
+  // instant templated ack; polling fills in the real track + on-air ack.
   const [result, setResult] = useState(null);
   const closeTimerRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const pollStopRef = useRef(false);
 
   useEffect(() => () => {
+    pollStopRef.current = true;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
   }, []);
 
+  // Hold the resolved card briefly, then slide the drawer shut and reset.
+  const scheduleClose = () => {
+    if (!onClose || closeTimerRef.current) return;
+    closeTimerRef.current = setTimeout(() => {
+      onClose();
+      // Defer state reset until after the close animation so the form
+      // doesn't flash back in during the slide.
+      setTimeout(() => setResult(null), 300);
+    }, SUCCESS_HOLD_MS);
+  };
+
+  // Poll the controller until the request resolves, fails, or the deadline
+  // passes. While pending the templated ack card stays up; on resolve it
+  // morphs into the real track + DJ ack, then auto-closes.
+  const startPolling = (requestId) => {
+    pollStopRef.current = false;
+    const deadline = Date.now() + POLL_DEADLINE_MS;
+    const tick = async () => {
+      if (pollStopRef.current) return;
+      if (Date.now() > deadline) { scheduleClose(); return; }
+      const data = await onPoll?.(requestId);
+      if (pollStopRef.current) return;
+      if (data?.status === 'resolved') {
+        setResult(prev => ({
+          success: true,
+          ack: data.ack || prev?.ack,
+          track: data.track,
+          queuePosition: data.queuePosition,
+        }));
+        scheduleClose();
+        return;
+      }
+      if (data?.status === 'failed') {
+        setResult({ success: false, message: data.message || 'No match — try different words.' });
+        return;
+      }
+      if (data?.status === 'unknown') { scheduleClose(); return; }
+      // pending, or a transient network null — keep polling.
+      pollTimerRef.current = setTimeout(tick, POLL_INTERVAL_MS);
+    };
+    pollTimerRef.current = setTimeout(tick, POLL_INTERVAL_MS);
+  };
+
   const handleSubmit = async () => {
+    // Capture before the await — onSubmit clears requestText on accept.
+    const askedText = requestText.trim();
+    const askedName = requesterName.trim();
     const data = await onSubmit();
     if (!data) return;
-    setResult(data);
-    if (data.success && onClose) {
-      // Hold the success card briefly so the listener sees what got queued,
-      // then slide the drawer shut and reset for next time.
-      closeTimerRef.current = setTimeout(() => {
-        onClose();
-        // Defer state reset until after the close animation so the form
-        // doesn't flash back in during the slide.
-        setTimeout(() => setResult(null), 300);
-      }, SUCCESS_HOLD_MS);
+    // 429 / 503 / network error — surface the miss banner, no polling.
+    if (!data.success) {
+      setResult(data);
+      return;
+    }
+    // Accepted. Show the instant ack now; poll for the real pick.
+    setResult({
+      success: true,
+      pending: true,
+      ack: templatedAck(askedName),
+      requestText: askedText,
+    });
+    if (data.requestId && onPoll) {
+      startPolling(data.requestId);
+    } else {
+      scheduleClose();
     }
   };
 
@@ -189,7 +258,7 @@ export default function RequestDrawer({
 }
 
 function SuccessCard({ result }) {
-  const { ack, track, queuePosition } = result;
+  const { ack, track, queuePosition, pending, requestText } = result;
   return (
     <div
       style={{
@@ -202,6 +271,7 @@ function SuccessCard({ result }) {
           from { opacity: 0; transform: translateY(6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes sw-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
       `}</style>
 
       <div
@@ -213,7 +283,7 @@ function SuccessCard({ result }) {
           marginBottom: 14,
         }}
       >
-        ✓ Queued
+        {pending ? '✓ Sent to the booth' : '✓ Queued'}
       </div>
 
       {ack && (
@@ -249,17 +319,41 @@ function SuccessCard({ result }) {
             marginBottom: 6,
           }}
         >
-          Now in the booth
+          {pending ? 'The DJ is digging' : 'Now in the booth'}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)' }}>
-          {track?.title}
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-          {track?.artist}
-        </div>
+        {pending ? (
+          <>
+            <div
+              style={{
+                fontSize: 16,
+                fontStyle: 'italic',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                color: 'var(--ink)',
+                lineHeight: 1.3,
+                animation: 'sw-pulse 1.4s ease-in-out infinite',
+              }}
+            >
+              finding your track…
+            </div>
+            {requestText && (
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+                “{requestText}”
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)' }}>
+              {track?.title}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+              {track?.artist}
+            </div>
+          </>
+        )}
       </div>
 
-      {typeof queuePosition === 'number' && queuePosition > 0 && (
+      {!pending && typeof queuePosition === 'number' && queuePosition > 0 && (
         <div
           className="v3-tab-num"
           style={{
@@ -283,7 +377,7 @@ function SuccessCard({ result }) {
           color: 'var(--muted)',
         }}
       >
-        Closing…
+        {pending ? 'You can close this — your request is locked in' : 'Closing…'}
       </div>
     </div>
   );

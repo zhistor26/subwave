@@ -87,6 +87,9 @@ export default function PlayerApp({ contained = false }) {
     });
   };
 
+  // Submit a request. The controller accepts in ~50ms and returns a request
+  // id; the actual matching runs in the booth. The drawer then polls
+  // pollRequest() for the outcome.
   const submitRequest = async () => {
     if (!requestText.trim() || isSubmitting) return null;
     setIsSubmitting(true);
@@ -104,6 +107,18 @@ export default function PlayerApp({ contained = false }) {
       return { success: false, message: 'Network error.' };
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Poll a submitted request for its outcome. Returns the controller's
+  // status payload, or null on a network error so the drawer keeps trying.
+  const pollRequest = async (requestId) => {
+    try {
+      const res = await fetch(`${API_URL}/request/${requestId}`);
+      if (res.status === 404) return { status: 'unknown' };
+      return await res.json();
+    } catch {
+      return null;
     }
   };
 
@@ -173,6 +188,7 @@ export default function PlayerApp({ contained = false }) {
             requesterName={requesterName} setRequesterName={setRequesterName}
             isSubmitting={isSubmitting}
             onSubmit={submitRequest}
+            onPoll={pollRequest}
             onClose={() => setDrawer(null)}
             nowPlaying={nowPlaying}
             context={context}
