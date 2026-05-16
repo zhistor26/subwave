@@ -314,7 +314,7 @@ export default function PersonasPanel() {
                 onClick={() => setFocusIdx(i)}
                 style={{
                   border: `1px solid ${isFocused ? 'var(--accent)' : 'var(--ink)'}`,
-                  background: isFocused ? 'var(--bg)' : 'transparent',
+                  background: isFocused ? 'var(--card-bg)' : 'transparent',
                   padding: 12,
                   cursor: 'pointer',
                   textAlign: 'left',

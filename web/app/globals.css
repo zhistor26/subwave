@@ -1335,9 +1335,27 @@ body::after {
   --ink-soft: color-mix(in oklab, var(--ink) 6%, transparent);
   --ink-softer: color-mix(in oklab, var(--ink) 3%, transparent);
   --muted-2: color-mix(in oklab, var(--muted) 70%, var(--bg));
+  /* Two-tone surface split, mirroring the design bundle (body #e8e4dc under a
+     lighter #f3efe6 paper). Light mode keeps cards at the bright cream and
+     darkens the page beneath them; dark mode keeps the page at the deep
+     charcoal and lifts the cards — so cards always read as panels instead of
+     dissolving into the page. */
+  --card-bg: var(--bg);
+  --page-bg: color-mix(in oklab, var(--bg) 90%, var(--ink));
 }
 
-.admin-root.paper { background: var(--bg); color: var(--ink); min-height: 100vh; }
+:root[data-theme="dark"] .admin-root {
+  --card-bg: color-mix(in oklab, var(--bg) 88%, var(--ink));
+  --page-bg: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .admin-root {
+    --card-bg: color-mix(in oklab, var(--bg) 88%, var(--ink));
+    --page-bg: var(--bg);
+  }
+}
+
+.admin-root.paper { background: var(--page-bg); color: var(--ink); min-height: 100vh; }
 
 /* ── Type ── */
 .admin-root .eyebrow {
@@ -1413,7 +1431,7 @@ body::after {
 }
 
 /* ── Card ── */
-.admin-root .card { border: 1px solid var(--ink); background: var(--bg); }
+.admin-root .card { border: 1px solid var(--ink); background: var(--card-bg); }
 .admin-root .card-head {
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;
   border-bottom: 1px solid var(--ink); flex-wrap: wrap;
