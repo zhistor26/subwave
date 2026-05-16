@@ -8,6 +8,7 @@
 // Everything POSTs to /settings and applies live — no mixer restart.
 import { useEffect, useState } from 'react';
 import { useAdminAuth } from '../../lib/adminAuth';
+import { CLOUD_VOICES } from '../../lib/cloudVoices';
 import { Card, Btn, Pill, Eyebrow, Seg, Toggle } from './ui';
 
 const FREQUENCIES = [
@@ -20,34 +21,6 @@ const ENGINES = [
   { id: 'kokoro', label: 'Kokoro' },
   { id: 'cloud',  label: 'Cloud' },
 ];
-// Curated default voices per cloud provider. OpenAI voices are plain ids;
-// ElevenLabs ids are the stock library voice ids. A persona can still use any
-// other voice via the free-text override below the dropdown.
-const CLOUD_VOICES = {
-  openai: [
-    { id: 'alloy',   label: 'Alloy' },
-    { id: 'ash',     label: 'Ash' },
-    { id: 'ballad',  label: 'Ballad' },
-    { id: 'coral',   label: 'Coral' },
-    { id: 'echo',    label: 'Echo' },
-    { id: 'fable',   label: 'Fable' },
-    { id: 'nova',    label: 'Nova' },
-    { id: 'onyx',    label: 'Onyx' },
-    { id: 'sage',    label: 'Sage' },
-    { id: 'shimmer', label: 'Shimmer' },
-  ],
-  elevenlabs: [
-    { id: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel' },
-    { id: 'AZnzlk1XvdvUeBnXmlld', label: 'Domi' },
-    { id: 'EXAVITQu4vr4xnSDxMaL', label: 'Sarah' },
-    { id: 'ErXwobaYiN019PkySvjV', label: 'Antoni' },
-    { id: 'MF3mGyEYCl7XYWbV9V6O', label: 'Elli' },
-    { id: 'TxGEqnHWrfWFTfGW9XjX', label: 'Josh' },
-    { id: 'VR6AewLTigWG4xSOukaG', label: 'Arnold' },
-    { id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam' },
-    { id: 'yoZ06aMxZJJ28mfd3POQ', label: 'Sam' },
-  ],
-};
 const NAME_MAX = 40;
 const TAGLINE_MAX = 80;
 const SOUL_MAX = 400;

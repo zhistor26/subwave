@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { fmtSize } from '../../lib/format';
 import { useAdminAuth } from '../../lib/adminAuth';
+import { CLOUD_VOICES } from '../../lib/cloudVoices';
 import { V3AlertDialog } from '../ui/alert-dialog';
 import { Card, Btn, Pill, Eyebrow, Seg, Metric } from './ui';
 
@@ -432,8 +433,8 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
         ]}
       />
 
-      {/* Defaults */}
-      <Card title="Defaults">
+      {/* Station-level fallback — not per-persona */}
+      <Card title="Station TTS fallback" sub="jingle rendering + persona engine fallback">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18 }}>
           <div className="field">
             <label className="field-label">Default engine</label>
@@ -478,15 +479,19 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
                 { id: 'off', label: 'off' },
                 ...(data.tts.cloudProviders || ['openai', 'elevenlabs']).map(p => ({ id: p, label: p })),
               ]}
-              onChange={v => setForm(f => ({
-                ...f,
-                tts: {
-                  ...f.tts,
-                  cloud: v === 'off'
-                    ? { ...f.tts.cloud, enabled: false }
-                    : { ...f.tts.cloud, enabled: true, provider: v },
-                },
-              }))}
+              onChange={v => setForm(f => {
+                if (v === 'off') {
+                  return { ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, enabled: false } } };
+                }
+                // Switching provider invalidates the old voice id — default to
+                // the new provider's first curated voice unless the current one
+                // is already valid for it.
+                const provVoices = CLOUD_VOICES[v] || [];
+                const voice = provVoices.some(pv => pv.id === f.tts.cloud.voice.trim())
+                  ? f.tts.cloud.voice
+                  : (provVoices[0]?.id || f.tts.cloud.voice);
+                return { ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, enabled: true, provider: v, voice } } };
+              })}
             />
             {!form.tts.cloud.enabled && (
               <div className="field-hint">Cloud TTS is off — engine pickers won’t offer it. Pick a provider to enable.</div>
@@ -505,16 +510,44 @@ function TtsSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
                   />
                   <div className="field-hint">e.g. “gpt-4o-mini-tts” (OpenAI) or “eleven_flash_v2_5” (ElevenLabs).</div>
                 </div>
-                <div className="field">
-                  <label className="field-label">Default voice</label>
-                  <input
-                    className="input"
-                    value={form.tts.cloud.voice}
-                    onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }))}
-                    placeholder="alloy"
-                  />
-                  <div className="field-hint">OpenAI: alloy, nova, … — ElevenLabs: a voice ID.</div>
-                </div>
+                {(() => {
+                  const provVoices = CLOUD_VOICES[form.tts.cloud.provider] || [];
+                  const voice = form.tts.cloud.voice.trim();
+                  const isPreset = provVoices.some(v => v.id === voice);
+                  return (
+                    <div className="field">
+                      <label className="field-label">Default voice</label>
+                      <select
+                        className="select"
+                        value={isPreset ? voice : '__custom__'}
+                        onChange={e => {
+                          if (e.target.value !== '__custom__') {
+                            setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }));
+                          }
+                        }}
+                      >
+                        {provVoices.map(v => (
+                          <option key={v.id} value={v.id}>{v.label}</option>
+                        ))}
+                        <option value="__custom__">Custom voice id…</option>
+                      </select>
+                      {!isPreset && (
+                        <input
+                          className="input"
+                          style={{ marginTop: 8, borderColor: voice ? 'var(--ink)' : 'var(--danger)' }}
+                          value={form.tts.cloud.voice}
+                          maxLength={100}
+                          placeholder="Enter a custom voice id"
+                          onChange={e => setForm(f => ({ ...f, tts: { ...f.tts, cloud: { ...f.tts.cloud, voice: e.target.value } } }))}
+                        />
+                      )}
+                      <div className="field-hint">
+                        Used when a Cloud persona hasn’t set its own voice. Pick a default, or choose
+                        <em> Custom voice id…</em> for any other OpenAI voice name / ElevenLabs voice id.
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="field" style={{ marginTop: 14 }}>
                 <label className="field-label">API key</label>
