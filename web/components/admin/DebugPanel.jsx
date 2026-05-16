@@ -134,6 +134,13 @@ export default function DebugPanel() {
             </Card>
           </div>
 
+          {/* ── TTS ROUTING — who speaks the next segment ───────────────── */}
+          {data.tts && !data.tts.error && (
+            <Card title="TTS routing" sub="who voices the next spoken segment">
+              <TtsRouting tts={data.tts} />
+            </Card>
+          )}
+
           {/* ── ROW 2 — LLM + LIQUIDSOAP ────────────────────────────────── */}
           <div className="stack-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
             <Card
@@ -304,6 +311,45 @@ export default function DebugPanel() {
             <KvTable obj={data.config} />
           </Card>
         </>
+      )}
+    </div>
+  );
+}
+
+function TtsRouting({ tts }) {
+  const s = tts.spoken || {};
+  const fellBack = !!s.fellBack;
+  const voiceLabel = s.voice
+    ? (s.provider ? `${s.provider} / ${s.voice}` : s.voice)
+    : null;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span className="caption">persona</span>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>{tts.effectivePersona?.name || '—'}</span>
+        <span className="caption" style={{ marginLeft: 8 }}>engine</span>
+        <Pill
+          tone={fellBack ? undefined : 'accent'}
+          style={fellBack ? { color: 'var(--danger)', borderColor: 'var(--danger)' } : undefined}
+        >
+          {s.engine || '—'}
+        </Pill>
+        {voiceLabel && <Pill>{voiceLabel}</Pill>}
+        {fellBack && (
+          <span className="caption" style={{ color: 'var(--danger)' }}>
+            requested {s.requested} · fell back
+          </span>
+        )}
+        <span className="caption" style={{ marginLeft: 'auto' }}>
+          jingle · {tts.jingle?.engine || '—'}
+        </span>
+      </div>
+      {fellBack && (
+        <V3Alert tone="error" title={`Cloud voice unavailable — speaking via ${s.engine}`}>
+          This persona is set to <strong>{s.requested}</strong> TTS, but it isn’t usable
+          (switched off, or the provider’s API key is missing). Spoken segments are coming
+          out of <strong>{s.engine}</strong> instead. Fix it in Settings → TTS voice.
+        </V3Alert>
       )}
     </div>
   );

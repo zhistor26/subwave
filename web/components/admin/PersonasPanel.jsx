@@ -47,6 +47,24 @@ function personaValid(p, defaultEngine) {
   return true; // piper — voice ignored
 }
 
+// For a cloud persona: why (if at all) its cloud voice won't actually play —
+// the global Cloud engine is switched off, or its provider's API key is
+// missing. Returns a human sentence, or null when the cloud voice is good to
+// go. A persona can look fully configured here yet still fall back silently;
+// this surfaces that gap before it airs.
+function cloudIssue(persona, data) {
+  if (persona?.tts?.engine !== 'cloud') return null;
+  if (data?.values?.tts?.cloud?.enabled === false) {
+    return 'Cloud TTS is switched off in Settings → TTS voice.';
+  }
+  const envKey = persona.tts.cloudProvider === 'elevenlabs'
+    ? 'ELEVENLABS_API_KEY' : 'OPENAI_API_KEY';
+  if (data?.env && !data.env[envKey]) {
+    return `${envKey} is not set in controller/.env.`;
+  }
+  return null;
+}
+
 export default function PersonasPanel() {
   const { adminFetch, needsAuth, hydrated } = useAdminAuth();
   const [data, setData] = useState(null);
@@ -207,6 +225,9 @@ export default function PersonasPanel() {
   const focusedSoulLen = focused.soul.trim().length;
   const focusedSoulOver = focusedSoulLen > SOUL_MAX;
   const focusedOk = personaValid(focused);
+  const focusedCloudIssue = cloudIssue(focused, data);
+  const activeCloudIssue = activePersona ? cloudIssue(activePersona, data) : null;
+  const defaultEngine = data?.values?.tts?.defaultEngine || 'piper';
 
   const engineLabel = (p) => {
     if (p.tts.engine === 'kokoro') return `kokoro / ${p.tts.voice.trim() || '—'}`;
@@ -252,6 +273,11 @@ export default function PersonasPanel() {
             frequency · {activePersona ? activePersona.frequency : '—'}
           </span>
           <span className="caption">voice · {activePersona ? engineLabel(activePersona) : '—'}</span>
+          {activeCloudIssue && (
+            <span className="caption" style={{ color: 'var(--danger)' }}>
+              ⚠ cloud voice inactive — speaking via {defaultEngine}
+            </span>
+          )}
           <span className="caption">override · — (a scheduled show may reassign the hour)</span>
         </div>
       </section>
@@ -531,6 +557,17 @@ export default function PersonasPanel() {
               const voice = focused.tts.voice.trim();
               const isPreset = provVoices.some(v => v.id === voice);
               return (
+                <>
+                {focusedCloudIssue && (
+                  <div style={{
+                    marginBottom: 14, padding: '10px 12px',
+                    border: '1px solid var(--danger)',
+                    fontSize: 11, lineHeight: 1.6, color: 'var(--danger)',
+                  }}>
+                    <strong>This cloud voice won’t play.</strong> {focusedCloudIssue}{' '}
+                    Until that’s fixed, this persona falls back to <strong>{defaultEngine}</strong>.
+                  </div>
+                )}
                 <div className="stack-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div className="field">
                     <label className="field-label">Cloud provider</label>
@@ -578,6 +615,7 @@ export default function PersonasPanel() {
                     </div>
                   </div>
                 </div>
+                </>
               );
             })()}
           </Card>

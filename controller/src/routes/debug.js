@@ -4,6 +4,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { config } from '../config.js';
 import * as dj from '../llm/dj.js';
 import * as llmProvider from '../llm/provider.js';
+import * as tts from '../audio/tts.js';
 import * as library from '../music/library.js';
 import { getFullContext } from '../context.js';
 import { queue } from '../broadcast/queue.js';
@@ -102,6 +103,15 @@ router.get('/debug', requireAdmin, async (req, res) => {
     ollamaUrl: config.ollama.url,
     recentCalls: dj.recentCalls,
   };
+
+  // 6c. TTS routing — which engine/voice the effective persona resolves to,
+  // and whether it's silently falling back from the engine the persona asked
+  // for (e.g. a cloud voice with the Cloud engine switched off).
+  try {
+    out.tts = tts.describeRouting();
+  } catch (err) {
+    out.tts = { error: err.message };
+  }
 
   // 6b. Library tagging stats
   try {

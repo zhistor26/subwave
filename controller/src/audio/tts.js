@@ -48,9 +48,16 @@ function resolveEngine(kind, personaTts) {
   }
   if (!ENGINES.includes(chosen)) return 'piper';
   // `cloud` without a configured key would just throw and fall back — skip
-  // the wasted API attempt and resolve straight to a local engine.
-  if (chosen === 'cloud' && !cloud.isConfigured()) {
-    return tts.defaultEngine && tts.defaultEngine !== 'cloud' ? tts.defaultEngine : 'piper';
+  // the wasted API attempt and resolve straight to a local engine. Check the
+  // persona's own provider: a persona on ElevenLabs needs that provider's key,
+  // not the global Cloud-engine provider's.
+  if (chosen === 'cloud') {
+    const provider = (personaTts && personaTts.engine === 'cloud')
+      ? personaTts.cloudProvider
+      : null;
+    if (!cloud.isConfigured(provider)) {
+      return tts.defaultEngine && tts.defaultEngine !== 'cloud' ? tts.defaultEngine : 'piper';
+    }
   }
   return chosen;
 }
@@ -98,5 +105,45 @@ export function availableEngines() {
     piper: true,
     kokoro: kokoro.isAvailable(),
     cloud: cloud.isConfigured(),
+    // Per-provider — a persona's cloud voice is only usable if *its* provider
+    // is configured, which can differ from the global Cloud-engine provider.
+    cloudByProvider: {
+      openai: cloud.isConfigured('openai'),
+      elevenlabs: cloud.isConfigured('elevenlabs'),
+    },
+  };
+}
+
+// Snapshot of how a spoken segment would currently route: which engine the
+// effective persona's voice resolves to, and whether that's a fallback from
+// the engine the persona actually asked for. Surfaced in /debug so the
+// operator can see *who speaks* without waiting for a segment to air.
+export function describeRouting() {
+  const persona = settings.getEffectivePersona();
+  const personaTts = persona?.tts || null;
+  const tts = settings.get().tts || {};
+  const requested = personaTts?.engine || tts.defaultEngine || 'piper';
+  const engine = resolveEngine('dj-speak', personaTts);   // any persona-voiced kind
+  let voice = null;
+  let provider = null;
+  if (engine === 'cloud') {
+    voice = personaTts?.engine === 'cloud' ? personaTts.voice : tts.cloud?.voice;
+    provider = personaTts?.engine === 'cloud' ? personaTts.cloudProvider : tts.cloud?.provider;
+  } else if (engine === 'kokoro') {
+    voice = (personaTts?.engine === 'kokoro' && personaTts.voice)
+      ? personaTts.voice
+      : tts.kokoro?.voice;
+  }
+  return {
+    effectivePersona: persona ? { id: persona.id, name: persona.name } : null,
+    available: availableEngines(),
+    spoken: {
+      requested,
+      engine,
+      voice: voice || null,
+      provider: provider || null,
+      fellBack: requested !== engine,
+    },
+    jingle: { engine: resolveEngine('jingle', null) },
   };
 }

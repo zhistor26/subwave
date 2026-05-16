@@ -14,6 +14,17 @@ import crypto from 'node:crypto';
 import { config } from '../config.js';
 import * as settings from '../settings.js';
 
+// Default TTS model per cloud provider. A model id is provider-specific — an
+// OpenAI id like "gpt-4o-mini-tts" is invalid against ElevenLabs and vice
+// versa. When a persona overrides the provider away from the global Cloud
+// engine setting, the global `tts.cloud.model` no longer applies, so we fall
+// back to the new provider's default here. Mirror of CLOUD_MODELS[*][0] in
+// web/lib/cloudVoices.js.
+const CLOUD_DEFAULT_MODELS = {
+  openai: 'gpt-4o-mini-tts',
+  elevenlabs: 'eleven_flash_v2_5',
+};
+
 function cloudCfg() {
   return settings.get().tts?.cloud || {};
 }
@@ -30,15 +41,31 @@ function speechModel(c) {
 // True when the cloud engine has a usable key (from Settings or the
 // provider's env var). tts.js calls this before routing to `cloud` so a
 // misconfigured station silently uses the local engine instead.
-export function isConfigured() {
+//
+// `providerOverride` asks about a *persona's* provider rather than the global
+// Cloud-engine provider — a persona on ElevenLabs needs ELEVENLABS_API_KEY
+// even when the global provider is OpenAI.
+export function isConfigured(providerOverride = null) {
   const c = cloudCfg();
   // Operator's explicit "Off" switch — cloud reports unavailable even with a key.
   if (c.enabled === false) return false;
-  if (!c.provider || !c.model) return false;
-  const envKey = c.provider === 'elevenlabs'
+  const provider = providerOverride || c.provider;
+  if (!provider) return false;
+  // When overriding provider the model is auto-resolved per provider, so it's
+  // always present; only the global-provider path depends on the stored model.
+  const model = (providerOverride && providerOverride !== c.provider)
+    ? CLOUD_DEFAULT_MODELS[providerOverride]
+    : c.model;
+  if (!model) return false;
+  const envKey = provider === 'elevenlabs'
     ? process.env.ELEVENLABS_API_KEY
     : process.env.OPENAI_API_KEY;
-  return !!(c.apiKey || envKey);
+  // A key typed into Settings only counts for the global provider it was
+  // entered against — not for a persona that overrode to a different one.
+  const settingsKey = (!providerOverride || providerOverride === c.provider)
+    ? c.apiKey
+    : null;
+  return !!(settingsKey || envKey);
 }
 
 // Generate speech and write it to a file. Returns the path — same contract as
@@ -48,7 +75,14 @@ export function isConfigured() {
 // provider + voice while still sharing the global model + apiKey from Settings.
 export async function speak(text, { outPath, cloudOverride = null } = {}) {
   if (!text || !text.trim()) throw new Error('Empty TTS text');
-  const c = { ...cloudCfg(), ...(cloudOverride || {}) };
+  const base = cloudCfg();
+  const c = { ...base, ...(cloudOverride || {}) };
+  // A model id is provider-specific. When a persona overrode the provider away
+  // from the global Cloud engine setting, the stored model belongs to the
+  // wrong provider — swap in the new provider's default.
+  if (cloudOverride?.provider && cloudOverride.provider !== base.provider) {
+    c.model = CLOUD_DEFAULT_MODELS[cloudOverride.provider] || c.model;
+  }
 
   const result = await generateSpeech({
     model: speechModel(c),
