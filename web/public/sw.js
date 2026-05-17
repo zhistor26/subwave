@@ -11,13 +11,25 @@
 //   • /stream.mp3, /api/*  → bypass entirely (do not even respondWith).
 //   • POST / non-GET       → bypass.
 //   • Cross-origin         → bypass (Next image/font CDNs can self-cache).
-//   • Same-origin GET HTML / static asset → stale-while-revalidate.
+//   • /_next/static/*      → cache-first. These URLs are content-hashed and
+//                            immutable, so a cache hit is always correct.
+//   • Everything else (HTML documents, RSC payloads, icons, manifest)
+//                          → network-first, cache only as an offline fallback.
 //
-// Bump CACHE to invalidate after a deploy that changes shell HTML semantics;
-// hashed `_next/static/*` assets are immutable so versioning isn't needed for
-// them, but bumping is the simplest way to evict the HTML shell.
+// Why network-first for HTML and not stale-while-revalidate: an HTML document
+// (or RSC payload) embeds references to content-hashed `_next/static/*` chunk
+// filenames. After a deploy those hashes change. Serving a *stale* cached
+// document means the browser then requests chunk hashes the server no longer
+// has → 404 → ChunkLoadError → "Application error: a client-side exception".
+// That is exactly the failure a stale-while-revalidate HTML cache produced on
+// the first route a returning visitor landed on after a deploy. Network-first
+// guarantees the document always matches the build whose chunks are live.
+//
+// Bump CACHE on any deploy that changes this file's semantics — the `activate`
+// handler deletes every cache whose key isn't the current CACHE, which is what
+// evicts a previous version's (now-poisoned) HTML.
 
-const CACHE = 'subwave-shell-v1';
+const CACHE = 'subwave-shell-v2';
 
 self.addEventListener('install', (event) => {
   // Take over straight away so a freshly-deployed shell isn't stuck behind
@@ -45,21 +57,45 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/stream.mp3') return;
   if (url.pathname.startsWith('/api/')) return;
 
-  event.respondWith(staleWhileRevalidate(request));
+  // Content-hashed, immutable build assets — a cache hit is always correct.
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // HTML documents, RSC navigations, icons, manifest — must track the live
+  // build. Network-first; the cache is only a flaky-network fallback.
+  event.respondWith(networkFirst(request));
 });
 
-async function staleWhileRevalidate(request) {
+// Immutable assets: serve from cache if present, otherwise fetch and store.
+async function cacheFirst(request) {
   const cache = await caches.open(CACHE);
   const cached = await cache.match(request);
-  const network = fetch(request)
-    .then((res) => {
-      // Only cache successful basic responses; opaque/error responses would
-      // poison the cache.
-      if (res && res.ok && res.type === 'basic') {
-        cache.put(request, res.clone()).catch(() => {});
-      }
-      return res;
-    })
-    .catch(() => null);
-  return cached || (await network) || Response.error();
+  if (cached) return cached;
+  try {
+    const res = await fetch(request);
+    if (res && res.ok && res.type === 'basic') {
+      cache.put(request, res.clone()).catch(() => {});
+    }
+    return res;
+  } catch {
+    return Response.error();
+  }
+}
+
+// Everything else: always prefer the network so the shell matches the deployed
+// build; fall back to the last good cached copy only when the network fails.
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE);
+  try {
+    const res = await fetch(request);
+    if (res && res.ok && res.type === 'basic') {
+      cache.put(request, res.clone()).catch(() => {});
+    }
+    return res;
+  } catch {
+    const cached = await cache.match(request);
+    return cached || Response.error();
+  }
 }
