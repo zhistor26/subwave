@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useClock } from '../../lib/hooks';
+import ThemeToggle from './ThemeToggle';
 
 const LAUNCH_DATE = new Date('2026-01-01T00:00:00Z');
 
@@ -23,10 +24,14 @@ export default function Masthead() {
         className="flex flex-wrap items-end justify-between"
         style={{ padding: '24px 0 16px', gap: 24 }}
       >
-        <div className="bs-caption" style={{ color: 'var(--muted)', minWidth: 120 }}>
+        <div
+          className="bs-caption flex items-center"
+          style={{ color: 'var(--muted)', minWidth: 120, gap: 10 }}
+        >
           <span style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase' }}>
             VOL. I &nbsp;·&nbsp; NO.&nbsp;{now ? issueNo(now) : '—'}
           </span>
+          <ThemeToggle />
         </div>
 
         <Link

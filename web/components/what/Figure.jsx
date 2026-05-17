@@ -13,9 +13,9 @@ export default function Figure({ src, alt, caption, label, ratio = '16 / 10' }) 
           style={{
             display: 'block',
             width: '100%',
+            height: 'auto',
             border: '1px solid var(--ink)',
-            aspectRatio: ratio,
-            objectFit: 'cover',
+            objectFit: 'contain',
           }}
         />
       ) : (
