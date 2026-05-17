@@ -210,6 +210,21 @@ body::after {
     animation: v3-blink 1s steps(1) infinite;
 }
 
+/* Tune-in gate — the play disc emits an expanding ink ring so the overlay's
+   call-to-action keeps drawing the eye until the listener taps. */
+@keyframes v3-tunein-pulse {
+    0% {
+        box-shadow: 0 0 0 0 color-mix(in oklab, var(--ink) 35%, transparent);
+    }
+    70%,
+    100% {
+        box-shadow: 0 0 0 26px color-mix(in oklab, var(--ink) 0%, transparent);
+    }
+}
+.v3-tunein-pulse {
+    animation: v3-tunein-pulse 2s ease-out infinite;
+}
+
 /* Sonner toast styling — sharp ink-bordered cream cards. */
 .v3-toast {
     background: var(--bg);
@@ -232,7 +247,8 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
     .v3-drawer-content,
     .v3-drawer-overlay,
-    .v3-blink {
+    .v3-blink,
+    .v3-tunein-pulse {
         animation: none !important;
     }
 }

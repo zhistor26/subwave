@@ -7,6 +7,7 @@ import TopBar from './TopBar';
 import CenterStage from './CenterStage';
 import Waveform from './Waveform';
 import TransportBar from './TransportBar';
+import TuneInOverlay from './TuneInOverlay';
 import DotRail from './DotRail';
 import { Sheet } from './ui/sheet';
 import { Toaster } from './ui/toaster';
@@ -57,6 +58,15 @@ export default function PlayerApp({ contained = false }) {
   const [drawer, setDrawer] = useState(null);
   const [tickerOn, setTickerOn] = useState(true);
   const [theme, setTheme] = useState('light');
+
+  // First-paint tune-in gate. Shown on every fresh load until the listener
+  // taps it; dismissed permanently for the rest of the session once they've
+  // tuned in, so a later Tune Out doesn't bring the overlay back.
+  const [showTuneIn, setShowTuneIn] = useState(true);
+  const tuneInFromOverlay = () => {
+    setShowTuneIn(false);
+    tune();
+  };
 
   // Hydrate ticker preference from localStorage (avoids SSR hydration mismatch).
   useEffect(() => {
@@ -195,6 +205,10 @@ export default function PlayerApp({ contained = false }) {
           />
         )}
       </Sheet>
+
+      {showTuneIn && !offline && (
+        <TuneInOverlay onTune={tuneInFromOverlay} nowPlaying={nowPlaying} />
+      )}
 
       {!contained && <Toaster />}
     </div>
