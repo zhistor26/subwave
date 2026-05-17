@@ -3,6 +3,7 @@
 
 import crypto from 'node:crypto';
 import { config } from '../config.js';
+import * as subLog from './subsonic-log.js';
 
 function buildAuth() {
   const salt = crypto.randomBytes(8).toString('hex');
@@ -28,14 +29,49 @@ function buildUrl(endpoint, params = {}) {
   return url.toString();
 }
 
+// Response keys that carry item arrays, checked in order — first match wins.
+// Key-driven (not endpoint-switched) so new callers are covered automatically.
+const ITEM_PATHS = [
+  ['searchResult3', 'song'], ['randomSongs', 'song'], ['songsByGenre', 'song'],
+  ['similarSongs2', 'song'], ['starred2', 'song'], ['topSongs', 'song'],
+  ['album', 'song'], ['playlist', 'entry'], ['albumList2', 'album'],
+];
+
+function extractItems(sub) {
+  for (const [a, b] of ITEM_PATHS) {
+    const v = sub[a]?.[b];
+    if (Array.isArray(v)) return v;
+  }
+  return [];
+}
+
 async function call(endpoint, params = {}) {
-  const url = buildUrl(endpoint, params);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Subsonic ${endpoint} failed: ${res.status}`);
-  const data = await res.json();
-  const sub = data['subsonic-response'];
-  if (sub.status !== 'ok') throw new Error(`Subsonic error: ${sub.error?.message || 'unknown'}`);
-  return sub;
+  const started = Date.now();
+  try {
+    const url = buildUrl(endpoint, params);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Subsonic ${endpoint} failed: ${res.status}`);
+    const data = await res.json();
+    const sub = data['subsonic-response'];
+    if (sub.status !== 'ok') throw new Error(`Subsonic error: ${sub.error?.message || 'unknown'}`);
+    const items = extractItems(sub);
+    subLog.record({
+      t: new Date().toISOString(), endpoint, params, ms: Date.now() - started,
+      ok: true, count: items.length,
+      // Songs carry both id and title; albumList2 rows have no title — keep
+      // them out of song coverage but still counted via `count` above.
+      songIds: items
+        .filter(i => i?.id && i?.title)
+        .map(i => ({ id: i.id, title: i.title, artist: i.artist })),
+    });
+    return sub;
+  } catch (err) {
+    subLog.record({
+      t: new Date().toISOString(), endpoint, params, ms: Date.now() - started,
+      ok: false, count: 0, songIds: [], error: err.message,
+    });
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------

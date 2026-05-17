@@ -6,6 +6,7 @@ import * as dj from '../llm/dj.js';
 import * as llmProvider from '../llm/provider.js';
 import * as tts from '../audio/tts.js';
 import * as library from '../music/library.js';
+import * as subsonicLog from '../music/subsonic-log.js';
 import { getFullContext } from '../context.js';
 import * as settings from '../settings.js';
 import { queue } from '../broadcast/queue.js';
@@ -123,6 +124,14 @@ router.get('/debug', requireAdmin, async (req, res) => {
     out.library = { error: err.message };
   }
 
+  // 6d. Subsonic API call tracking — every request to Navidrome, plus
+  // library-coverage stats (distinct songs returned vs. tagged total).
+  try {
+    out.subsonic = subsonicLog.snapshot(out.library?.total ?? null);
+  } catch (err) {
+    out.subsonic = { error: err.message };
+  }
+
   // 7. Context snapshot
   try {
     out.context = await getFullContext();
@@ -180,4 +189,11 @@ router.get('/sessions', requireAdmin, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /debug/subsonic/reset — zero the Subsonic call tracker so coverage can
+// be watched building from scratch during a targeted test run.
+router.post('/debug/subsonic/reset', requireAdmin, (req, res) => {
+  subsonicLog.reset();
+  res.json({ ok: true });
 });
