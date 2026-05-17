@@ -9,6 +9,11 @@ it, intros it, and queues it.
 It is *radio*, not a playlist. There is no per-listener shuffle, no skip
 button, no "up next for you." You tune in and hear whatever is on.
 
+## Live demo
+
+- **Landing page** — [radio.klair.co](https://radio.klair.co/)
+- **Demo player** — [radio.klair.co/listen](https://radio.klair.co/listen)
+
 ## Screenshots
 
 **The listener player** — one shared broadcast, with in-app song requests.
