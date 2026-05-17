@@ -5,6 +5,8 @@ export const MANUAL_PAGES = [
   { href: '/manual', label: 'Overview' },
   { href: '/manual/getting-started', label: 'Getting Started' },
   { href: '/manual/requests', label: 'Making Requests' },
+  { href: '/manual/shortcuts', label: 'Keyboard Shortcuts' },
   { href: '/manual/dj', label: 'How the DJ Works' },
   { href: '/manual/admin', label: 'Admin & Settings' },
+  { href: '/manual/mcp', label: 'Agent Access' },
 ];

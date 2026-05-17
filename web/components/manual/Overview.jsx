@@ -13,6 +13,11 @@ const GUIDE = [
     blurb: 'Ask the DJ for a track, an artist, or just a mood — and what happens after you do.',
   },
   {
+    href: '/manual/shortcuts',
+    label: 'Keyboard Shortcuts',
+    blurb: 'Drive the whole player from the keyboard, plus the command palette.',
+  },
+  {
     href: '/manual/dj',
     label: 'How the DJ Works',
     blurb: 'The AI behind the desk: how it picks songs, when it talks, and who it sounds like.',
@@ -21,6 +26,11 @@ const GUIDE = [
     href: '/manual/admin',
     label: 'Admin & Settings',
     blurb: 'For the operator — signing in, tuning the DJ, scheduling shows, and managing jingles.',
+  },
+  {
+    href: '/manual/mcp',
+    label: 'Agent Access',
+    blurb: 'Let an AI agent read the station and request tracks over the MCP server.',
   },
 ];
 
@@ -34,7 +44,7 @@ export default function Overview() {
     >
       <section className="bs-section">
         <p className="bs-eyebrow">WHAT'S INSIDE</p>
-        <h2>Four short guides.</h2>
+        <h2>Six short guides.</h2>
         <p>
           Start at the top if you're new. Each page links to the next, so you can read
           straight through, or jump to whatever you need from the contents on the left.
