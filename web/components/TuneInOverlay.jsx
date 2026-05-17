@@ -18,7 +18,12 @@ export default function TuneInOverlay({ onTune, nowPlaying }) {
       onClick={onTune}
       aria-label="Tune in to the live stream"
       className="absolute inset-0 z-50 v3-focus v3-fade-in flex flex-col items-center justify-center gap-7 cursor-pointer text-center px-6"
-      style={{ background: 'var(--bg)', color: 'var(--ink)' }}
+      style={{
+        background: 'color-mix(in oklab, var(--bg) 6%, transparent)',
+        color: 'var(--ink)',
+        backdropFilter: 'blur(1.5px) saturate(1.9) brightness(1.07)',
+        WebkitBackdropFilter: 'blur(1.5px) saturate(1.9) brightness(1.07)',
+      }}
     >
       <span className="v3-eyebrow flex items-center gap-2" style={{ color: 'var(--accent)' }}>
         <span className="bs-live-dot" />
