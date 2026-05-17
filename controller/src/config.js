@@ -85,11 +85,4 @@ export const config = {
   show: {
     autoQueueRefreshMinutes: parseInt(process.env.AUTO_QUEUE_REFRESH_MINUTES || '60', 10),
   },
-  voice: {
-    // Silent lead-in prepended to every ducking voice WAV. While this silence
-    // plays, Liquidsoap's smooth_add already fades the music down — so the
-    // music is ducked by the time the DJ actually starts talking. Tuned to
-    // roughly match the smooth_add fade length in radio.liq.
-    leadInMs: parseInt(process.env.VOICE_LEAD_IN_MS || '800', 10),
-  },
 };

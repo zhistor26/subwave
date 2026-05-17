@@ -181,12 +181,29 @@ music = cross(
 voice_queue = request.queue(id="voice_queue")
 intro_queue = request.queue(id="intro_queue")
 
+# Silent lead-in clip. Pushed into a voice channel immediately before the
+# actual speech file so smooth_add starts ducking the music while this silence
+# plays — the dip completes BEFORE the DJ's first word, then ramps back up
+# once the speech finishes. request.queue plays the two pushes back to back
+# with no gap, so the duck holds continuously across the join. Engine-agnostic:
+# the speech file itself may be a WAV (Piper/Kokoro) or an mp3 (ElevenLabs).
+leadin_path = "/sounds/leadin.wav"
+has_leadin = file.exists(leadin_path)
+if has_leadin then
+  log("Voice lead-in enabled: #{leadin_path}")
+else
+  log("No #{leadin_path} — DJ voice will duck without a pre-roll lead-in")
+end
+
 def poll_voice() =
   if file.exists("/var/sub-wave/say.txt") then
     contents = file.contents("/var/sub-wave/say.txt")
     file.remove("/var/sub-wave/say.txt")
     if contents != "" then
       log("DJ says: #{contents}")
+      if has_leadin then
+        ignore(voice_queue.push(request.create(leadin_path)))
+      end
       ignore(voice_queue.push(request.create(contents)))
     end
   end
@@ -199,6 +216,9 @@ def poll_intro() =
     file.remove("/var/sub-wave/intro.txt")
     if contents != "" then
       log("DJ talk-over: #{contents}")
+      if has_leadin then
+        ignore(intro_queue.push(request.create(leadin_path)))
+      end
       ignore(intro_queue.push(request.create(contents)))
     end
   end
@@ -300,9 +320,10 @@ music_bus =
 # Heavy duck for request intros / station IDs / hourly / weather.
 # duration = fade time into/out of the duck. p is a getter (curly braces).
 ducked = smooth_add(
-  duration=0.8,     # gentle fade; the controller prepends ~0.8s of silent
-                    # lead-in to voice WAVs so this dip completes before the
-                    # DJ actually starts talking, and ramps back up after.
+  duration=0.8,     # gentle fade; each voice channel gets a silent lead-in
+                    # clip pushed ahead of the speech (see poll_voice /
+                    # poll_intro) so this dip completes BEFORE the DJ starts
+                    # talking, and ramps back up after.
   p={0.15},         # music drops to 15% (~-16 dB) while voice plays
   normal=music_bus,
   special=voice
