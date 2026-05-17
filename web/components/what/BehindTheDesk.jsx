@@ -8,22 +8,34 @@ const PANELS = [
       'Live status — who is on air, the mood, listener count, weather. See the queue, read the booth log, skip a track, fire a station ID, or send your own words to air as raw or styled voice.',
   },
   {
-    eyebrow: 'SETTINGS',
-    title: 'TTS, LLM, mixer, jingles.',
-    body:
-      'Pick the voice engine and the language model, set the crossfade and station location, build station idents. A danger zone starts, stops, and restarts the broadcast.',
-  },
-  {
     eyebrow: 'PERSONAS',
     title: 'The voices on the station.',
     body:
       'Up to twelve DJ identities — name, soul, tagline, talk frequency, voice, and which skills each one may use. One persona is on air at a time; a show can hand it the hour.',
   },
   {
+    eyebrow: 'SKILLS',
+    title: 'What the DJ does between tracks.',
+    body:
+      'Each skill is an autonomous segment — a weather check, a news headline, an absurd traffic update, an oddly-specific fact. Toggle each one on, assign it to a persona, or run any one now as an operator override.',
+    fig: {
+      src: '/screenshots/admin-skills.webp',
+      label: 'Admin — Skills',
+      caption:
+        'Skills: the autonomous segments the DJ runs between tracks — toggle each, run any one now.',
+    },
+  },
+  {
     eyebrow: 'SHOWS',
     title: 'A weekly schedule you paint.',
     body:
       'A 24×7 grid you brush shows onto. Each show carries a persona, a music mood, and a topic brief — genres, eras, the host’s tone. Autonomous hours fill whatever you leave blank.',
+    fig: {
+      src: '/screenshots/admin-shows.webp',
+      label: 'Admin — Weekly Schedule',
+      caption:
+        'Shows: brush programming onto a 24×7 grid, each slot its own persona and mood.',
+    },
   },
   {
     eyebrow: 'LIBRARY',
@@ -32,10 +44,10 @@ const PANELS = [
       'Search the Navidrome library by text, mood, and energy, queue any track, and browse recent additions. The mood tagger walks the library album-by-album and classifies every track.',
   },
   {
-    eyebrow: 'SKILLS & DEBUG',
-    title: 'Segments and diagnostics.',
+    eyebrow: 'DEBUG & STATS',
+    title: 'Health and diagnostics.',
     body:
-      'Skills are the autonomous segments the DJ runs between tracks — toggle them on, run any one now. Debug and Stats show health, logs, LLM call history, and usage at a glance.',
+      'Debug and Stats show health, Liquidsoap logs, LLM call history, and usage at a glance. Settings — TTS, LLM, mixer, jingles — and a danger zone that starts, stops, and restarts the broadcast.',
   },
 ];
 
@@ -74,17 +86,25 @@ export default function BehindTheDesk() {
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--muted)' }}>
               {p.body}
             </p>
+            {p.fig && (
+              <div style={{ marginTop: 16 }}>
+                <Figure
+                  src={p.fig.src}
+                  label={p.fig.label}
+                  caption={p.fig.caption}
+                />
+              </div>
+            )}
           </article>
         ))}
       </div>
 
-      <div className="bs-grid-split" style={{ marginTop: 16 }}>
+      <div className="bs-whatis-grid" style={{ marginTop: 16 }}>
         <Figure
-          src="/screenshots/admin-shows.webp"
-          label="Admin — Weekly Schedule"
-          caption="Shows: brush programming onto a 24×7 grid, each slot its own persona and mood."
+          src="/screenshots/admin-library.png"
+          label="Admin — Library"
+          caption="Library: search by text, mood, and energy, queue any track, and run the mood tagger."
         />
-        <div className="bs-column-rule" aria-hidden="true" />
         <Figure
           src="/screenshots/admin-debug.webp"
           label="Admin — Debug"

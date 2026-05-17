@@ -68,24 +68,20 @@ export default function UnderTheHood() {
         on the dateline.
       </p>
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 'clamp(24px, 4vw, 56px)',
-          marginTop: 32,
-        }}
-      >
-        <p
+      <div style={{ marginTop: 32 }}>
+        <div
+          className="bs-dj-glyph"
+          aria-hidden="true"
           style={{
-            fontSize: 16,
-            lineHeight: 1.6,
-            flex: '1 1 360px',
-            minWidth: 0,
-            margin: 0,
+            float: 'right',
+            width: 190,
+            margin: '2px 0 8px 14px',
           }}
         >
+          <div className="bs-dj-vinyl" />
+        </div>
+
+        <p style={{ fontSize: 16, lineHeight: 1.6, margin: 0 }}>
           Streaming apps gave everyone their own private channel. A playlist tuned
           to you, shuffled for you, paused the second you look away. SUB/WAVE goes
           the other direction entirely. It is one Icecast stream — a single
@@ -94,10 +90,6 @@ export default function UnderTheHood() {
           There is no skip button. There is no &ldquo;for you.&rdquo; You tune in,
           and you hear whatever is on the air right now, the same as everyone else.
         </p>
-
-        <div className="bs-dj-glyph" aria-hidden="true" style={{ flex: '0 0 auto' }}>
-          <div className="bs-dj-vinyl" />
-        </div>
       </div>
     </section>
   );

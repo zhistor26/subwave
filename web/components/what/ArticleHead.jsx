@@ -4,7 +4,7 @@ export default function ArticleHead() {
       <div className="bs-hero-head">
         <p className="bs-eyebrow">A REAL INTERNET RADIO STATION</p>
         <h1 className="bs-hero-title">
-          Inside SUB/WAVE — the radio station that runs itself.
+          SUB/WAVE — the radio station with a DJ who never sleeps.
         </h1>
         <p className="bs-hero-deck">
           One stream, an LLM behind the desk, and a music library that already
@@ -14,7 +14,7 @@ export default function ArticleHead() {
       </div>
 
       <div
-        className="flex flex-wrap items-baseline"
+        className="flex flex-wrap items-baseline justify-center"
         style={{
           gap: 16,
           fontSize: 10,
@@ -25,6 +25,7 @@ export default function ArticleHead() {
           borderTop: '1px solid var(--separator-strong)',
           borderBottom: '1px solid var(--separator-strong)',
           padding: '12px 0',
+          marginBottom: 0,
         }}
       >
         <span style={{ color: 'var(--ink)' }}>A personal radio station</span>

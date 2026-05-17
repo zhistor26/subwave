@@ -18,7 +18,7 @@ button, no "up next for you." You tune in and hear whatever is on.
 
 **The listener player** — one shared broadcast, with in-app song requests.
 
-<img src="web/public/screenshots/listen-ipad.webp" alt="Player — /listen on iPad" width="640">
+<img src="web/public/screenshots/listen.webp" alt="Player — the listener player on /listen" width="640">
 
 <img src="web/public/screenshots/player-request-song.webp" alt="Player — request a song" width="260">
 
@@ -28,8 +28,10 @@ button, no "up next for you." You tune in and hear whatever is on.
 |---|---|
 | <img src="web/public/screenshots/admin-dash.webp" alt="Admin — Dash: live status, queue, booth log" width="100%"> | <img src="web/public/screenshots/admin-personas.webp" alt="Admin — Personas: the DJ roster" width="100%"> |
 | **Dash** — live status, the queue, the booth log | **Personas** — the DJ roster, each with its own voice |
-| <img src="web/public/screenshots/admin-shows.webp" alt="Admin — Weekly schedule grid" width="100%"> | <img src="web/public/screenshots/admin-debug.webp" alt="Admin — Debug: health, logs, LLM calls" width="100%"> |
-| **Shows** — a 24×7 schedule you paint | **Debug** — health, logs, recent LLM calls |
+| <img src="web/public/screenshots/admin-shows.webp" alt="Admin — Weekly schedule grid" width="100%"> | <img src="web/public/screenshots/admin-skills.webp" alt="Admin — Skills: what the DJ does between tracks" width="100%"> |
+| **Shows** — a 24×7 schedule you paint | **Skills** — what the DJ does between tracks |
+| <img src="web/public/screenshots/admin-stats.webp" alt="Admin — Stats: LLM and TTS usage" width="100%"> | <img src="web/public/screenshots/admin-debug.webp" alt="Admin — Debug: health, logs, LLM calls" width="100%"> |
+| **Stats** — LLM and TTS usage at a glance | **Debug** — health, logs, recent LLM calls |
 
 ## Why it's built this way
 
