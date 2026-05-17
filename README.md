@@ -9,6 +9,21 @@ it, intros it, and queues it.
 It is *radio*, not a playlist. There is no per-listener shuffle, no skip
 button, no "up next for you." You tune in and hear whatever is on.
 
+## Screenshots
+
+**The listener player** — one shared broadcast, with in-app song requests.
+
+<img src="web/public/screenshots/player-request-song.webp" alt="Player — request a song" width="280">
+
+**The admin console** — where the operator runs the station.
+
+| | |
+|---|---|
+| <img src="web/public/screenshots/admin-dash.webp" alt="Admin — Dash: live status, queue, booth log" width="100%"> | <img src="web/public/screenshots/admin-personas.webp" alt="Admin — Personas: the DJ roster" width="100%"> |
+| **Dash** — live status, the queue, the booth log | **Personas** — the DJ roster, each with its own voice |
+| <img src="web/public/screenshots/admin-shows.webp" alt="Admin — Weekly schedule grid" width="100%"> | <img src="web/public/screenshots/admin-debug.webp" alt="Admin — Debug: health, logs, LLM calls" width="100%"> |
+| **Shows** — a 24×7 schedule you paint | **Debug** — health, logs, recent LLM calls |
+
 ## Why it's built this way
 
 A playlist is a list you control. Radio is a broadcast you join. SUB/WAVE
