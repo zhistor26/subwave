@@ -382,13 +382,16 @@ body::after {
 }
 @media (max-width: 560px) {
     .bs-masthead-head {
-        grid-template-columns: 1fr 1fr;
         align-items: center;
-        gap: 12px 24px;
+        gap: 10px;
     }
-    .bs-masthead-mark {
-        grid-column: 1 / -1;
-        grid-row: 2;
+    /* The VOL/NO dateline is dropped on mobile so the theme toggle, the
+       wordmark and the ON AIR status sit together on a single row. */
+    .bs-masthead-issue {
+        display: none;
+    }
+    .bs-wordmark {
+        font-size: clamp(38px, 13vw, 64px);
     }
 }
 

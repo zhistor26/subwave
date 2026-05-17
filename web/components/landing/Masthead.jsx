@@ -25,7 +25,10 @@ export default function Masthead() {
           className="bs-caption bs-masthead-meta flex items-center"
           style={{ color: 'var(--muted)', gap: 10 }}
         >
-          <span style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase' }}>
+          <span
+            className="bs-masthead-issue"
+            style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase' }}
+          >
             VOL. I &nbsp;·&nbsp; NO.&nbsp;{now ? issueNo(now) : '—'}
           </span>
           <ThemeToggle />
