@@ -27,21 +27,12 @@ export default function UnderTheHood() {
         — no socket, no message queue, the Unix way.
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
-          alignItems: 'center',
-          gap: 8,
-          marginTop: 28,
-        }}
-      >
+      <div className="bs-flow">
         {BOXES.map((b, i) => (
           <Fragment key={b.label}>
             <div
               className="bs-box"
               data-tone={b.tone === 'accent' ? 'accent' : undefined}
-              style={{ gridColumn: 'span 1' }}
             >
               {b.label}
               <div

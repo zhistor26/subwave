@@ -559,6 +559,25 @@ body::after {
     justify-content: center;
 }
 
+/* Architecture flow — 4 boxes + 3 arrows in a row on desktop; stacks
+   vertically on phones so the boxes don't overflow the viewport. */
+.bs-flow {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-top: 28px;
+}
+@media (max-width: 720px) {
+    .bs-flow {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    .bs-flow .bs-arrow {
+        transform: rotate(90deg);
+    }
+}
+
 /* Two-column landing grids — lead story + right rail, and the fold split. */
 .bs-grid-lead {
     display: grid;
