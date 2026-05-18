@@ -10,10 +10,21 @@
 import { generateText, Output, stepCountIs, ToolLoopAgent } from 'ai';
 import { languageModel, activeModelLabel } from './provider.js';
 import { record } from './log.js';
+import * as settings from '../settings.js';
+
+// Hard output-token caps. A reasoning model with no cap can generate until it
+// fills the whole context window — one runaway <think> ramble then ties up the
+// inference slot for minutes. These are generous backstops for normal output
+// (idents are ~150 tokens, structured picks ~250); raise them if you turn
+// `llm.reasoning` on and need room for the chain-of-thought.
+const MAX_TOKENS_TEXT   = 800;
+const MAX_TOKENS_OBJECT = 1000;
+const MAX_TOKENS_AGENT  = 1200;
 
 // Some models (Qwen 3, DeepSeek R1, etc.) emit a <think>…</think> reasoning
-// block before the answer. We ask the provider to disable thinking AND strip
-// any leftover tags defensively — `think: false` isn't honoured uniformly.
+// block before the answer. Reasoning is suppressed at the provider layer when
+// `llm.reasoning` is off (llm/provider.js no-think fetch + the Ollama `think`
+// flag below); we still strip any leftover tags defensively here.
 const THINK_TAG_RE = /<think>[\s\S]*?<\/think>\s*/gi;
 const DANGLING_THINK_RE = /^[\s\S]*?<\/think>\s*/i;
 
@@ -49,7 +60,9 @@ function usageOf(result) {
 // `repeat_penalty` is Ollama-specific and lives under providerOptions.ollama;
 // non-Ollama providers ignore the block entirely, so it's safe to always pass.
 function ollamaOptions(repeatPenalty) {
-  const opts = { think: false };
+  // `think` follows the llm.reasoning setting — false suppresses the
+  // <think> block on reasoning models served through Ollama.
+  const opts = { think: settings.get().llm?.reasoning === true };
   if (repeatPenalty != null) opts.options = { repeat_penalty: repeatPenalty };
   return { ollama: opts };
 }
@@ -62,7 +75,7 @@ export async function djText({
   topP = 0.95,
   repeatPenalty = 1.15,
   seed = null,
-  maxOutputTokens = null,
+  maxOutputTokens = MAX_TOKENS_TEXT,
   kind = 'sdk.djText',
 }) {
   const started = Date.now();
@@ -74,7 +87,7 @@ export async function djText({
       temperature,
       topP,
       ...(seed != null ? { seed } : {}),
-      ...(maxOutputTokens != null ? { maxOutputTokens } : {}),
+      maxOutputTokens,
       providerOptions: ollamaOptions(repeatPenalty),
     });
     const out = stripThinking(result.text);
@@ -119,6 +132,7 @@ export async function djObject({
   prompt,
   schema,
   temperature = 0.4,
+  maxOutputTokens = MAX_TOKENS_OBJECT,
   kind = 'sdk.djObject',
 }) {
   const started = Date.now();
@@ -133,6 +147,7 @@ export async function djObject({
           system,
           prompt,
           temperature,
+          maxOutputTokens,
           output: Output.object({ schema }),
           providerOptions: ollamaOptions(null),
         });
@@ -144,6 +159,7 @@ export async function djObject({
           system,
           prompt: `${prompt}\n\nRespond with a single JSON object only — no prose, no markdown fences.`,
           temperature,
+          maxOutputTokens,
           providerOptions: ollamaOptions(null),
         });
         object = schema.parse(JSON.parse(extractJson(stripThinking(result.text))));
@@ -187,6 +203,7 @@ export async function djAgent({
   schema,
   maxSteps = 8,
   temperature = 0.6,
+  maxOutputTokens = MAX_TOKENS_AGENT,
   kind = 'sdk.djAgent',
 }) {
   const started = Date.now();
@@ -197,6 +214,7 @@ export async function djAgent({
       tools,
       stopWhen: stepCountIs(maxSteps),
       temperature,
+      maxOutputTokens,
       ...(schema ? { output: Output.object({ schema }) } : {}),
     });
     const result = await agent.generate({ messages });

@@ -21,7 +21,8 @@ const SECTIONS = [
   { id: 'jingles', label: 'Jingles', hint: 'stingers' },
 ];
 
-// Each non-Ollama LLM provider reads its key from this controller env var.
+// Cloud LLM providers read their key from this controller env var. Providers
+// absent here (ollama, openai-compatible) need no key, so no KeyStatus row.
 const LLM_ENV_VARS = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
@@ -30,6 +31,20 @@ const LLM_ENV_VARS = {
   openrouter: 'OPENROUTER_API_KEY',
   gateway: 'AI_GATEWAY_API_KEY',
 };
+
+// Human-readable provider labels for the LLM provider picker — the raw ids
+// (e.g. "openai-compatible") read as cryptic in a bare segmented control.
+const LLM_PROVIDER_LABELS = {
+  ollama: 'Ollama — local homelab',
+  'openai-compatible': 'OpenAI-compatible — self-hosted (llama.cpp, vLLM, LM Studio)',
+  anthropic: 'Anthropic — Claude',
+  openai: 'OpenAI — GPT',
+  google: 'Google — Gemini',
+  deepseek: 'DeepSeek',
+  openrouter: 'OpenRouter — multi-vendor aggregator',
+  gateway: 'Vercel AI Gateway — multi-vendor aggregator',
+};
+const llmProviderLabel = (id) => LLM_PROVIDER_LABELS[id] || id || '—';
 
 export default function SettingsPanel() {
   const { adminFetch, needsAuth, hydrated } = useAdminAuth();
@@ -81,6 +96,8 @@ export default function SettingsPanel() {
         provider: data.values.llm?.provider ?? 'ollama',
         model: data.values.llm?.model ?? '',
         ollamaUrl: data.values.llm?.ollamaUrl ?? '',
+        baseUrl: data.values.llm?.baseUrl ?? '',
+        reasoning: !!data.values.llm?.reasoning,
         pickerAgent: !!data.values.llm?.pickerAgent,
       },
     });
@@ -627,11 +644,26 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
       provider: form.llm.provider,
       model: form.llm.model,
       ollamaUrl: form.llm.ollamaUrl,
+      baseUrl: form.llm.baseUrl,
+      reasoning: form.llm.reasoning,
       pickerAgent: form.llm.pickerAgent,
       // The API key is never set from the UI — it comes from the controller's
       // environment (ANTHROPIC_API_KEY / OPENAI_API_KEY / AI_GATEWAY_API_KEY).
     },
   });
+
+  // `data.llm.active` is the live "provider:model" the controller is routing
+  // through right now (reflects SAVED settings). Split on the first colon —
+  // the model half may itself contain colons (e.g. "nemotron-3-super:cloud").
+  const savedLlm = data.values?.llm || {};
+  const activeLabel = data.llm?.active || '';
+  const activeColon = activeLabel.indexOf(':');
+  const activeProvider = activeColon > -1 ? activeLabel.slice(0, activeColon) : (savedLlm.provider || '');
+  const activeModel = activeColon > -1 ? activeLabel.slice(activeColon + 1) : '';
+  // Form selection diverges from what's actually live → flag it so the
+  // operator never confuses "picked" with "running".
+  const llmDirty = form.llm.provider !== savedLlm.provider
+    || (form.llm.model || '').trim() !== (savedLlm.model || '').trim();
 
   return (
     <>
@@ -644,14 +676,54 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
 
       <Card title="Provider" sub="active routing">
         <div style={{ display: 'grid', gap: 18 }}>
+
+          {/* What the controller is routing through RIGHT NOW (saved state) —
+              the single source of truth, kept visually distinct from the
+              editable form below. */}
+          <div
+            style={{
+              padding: 12,
+              border: '1px solid var(--accent)',
+              background: 'var(--ink-softer)',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', marginTop: 5, flex: 'none', background: 'var(--accent)' }} />
+            <div style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+              <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--accent)' }}>
+                Routing now · {llmProviderLabel(activeProvider)}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                {activeModel
+                  ? <>Model <code>{activeModel}</code> — every LLM call goes here. {llmDirty ? 'Your edits below aren’t live until you Save.' : 'This is the saved, running config.'}</>
+                  : <>No model is set for this provider yet.</>}
+              </span>
+            </div>
+          </div>
+
           <div className="field">
-            <Label>Provider</Label>
-            <Seg
-              accent
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Label>Provider</Label>
+              {llmDirty && <Pill tone="accent" dot>unsaved</Pill>}
+            </div>
+            <Select
               value={form.llm.provider}
-              options={(data.llm.providers || ['ollama']).map(p => ({ id: p, label: p }))}
-              onChange={v => setForm(f => ({ ...f, llm: { ...f.llm, provider: v } }))}
-            />
+              onValueChange={v => setForm(f => ({ ...f, llm: { ...f.llm, provider: v } }))}
+            >
+              <SelectTrigger style={{ maxWidth: 360 }}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {(data.llm.providers || ['ollama']).map(p => (
+                    <SelectItem key={p} value={p}>{llmProviderLabel(p)}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <div className="field-hint">
+              {llmDirty
+                ? 'Provider changed — hit “Save LLM provider” below to route every call here.'
+                : 'The provider every LLM call routes through. Switching reroutes instantly on save — no redeploy.'}
+            </div>
           </div>
 
           <div className="field">
@@ -664,7 +736,9 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
                   ? 'nemotron-3-super:cloud'
                   : form.llm.provider === 'deepseek'
                     ? 'deepseek-v4-flash'
-                    : 'model id'
+                    : form.llm.provider === 'openai-compatible'
+                      ? 'Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf'
+                      : 'model id'
               }
               style={{ maxWidth: 360 }}
             />
@@ -679,9 +753,29 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
                       ? 'Gemini model id, e.g. “gemini-2.5-flash”.'
                       : form.llm.provider === 'deepseek'
                         ? 'DeepSeek model id. Leave blank for the “deepseek-v4-flash” default.'
-                        : 'Model id for the chosen provider — required.'}
+                        : form.llm.provider === 'openai-compatible'
+                          ? 'Model id exactly as the server reports it at /v1/models — required.'
+                          : 'Model id for the chosen provider — required.'}
             </div>
           </div>
+
+          {form.llm.provider === 'openai-compatible' && (
+            <div className="field">
+              <Label>Server base URL</Label>
+              <Input
+                value={form.llm.baseUrl}
+                onChange={e => setForm(f => ({ ...f, llm: { ...f.llm, baseUrl: e.target.value } }))}
+                placeholder="http://192.168.1.101:8080/v1"
+                style={{ maxWidth: 360 }}
+              />
+              <div className="field-hint">
+                Any OpenAI-compatible server (llama.cpp, vLLM, LM Studio…),
+                including the <code>/v1</code> suffix. Must be reachable from the
+                controller container — use the host’s LAN or Tailscale IP, not
+                <code>127.0.0.1</code>.
+              </div>
+            </div>
+          )}
 
           {form.llm.provider === 'ollama' && (
             <div className="field">
@@ -699,12 +793,36 @@ function LlmSection({ data, form, setForm, busy, saveMsg, saveSettings }) {
             </div>
           )}
 
-          {form.llm.provider !== 'ollama' && (
+          {LLM_ENV_VARS[form.llm.provider] && (
             <KeyStatus
               envVar={LLM_ENV_VARS[form.llm.provider]}
               present={!!data.env?.[LLM_ENV_VARS[form.llm.provider]]}
             />
           )}
+        </div>
+      </Card>
+
+      <Card title="Reasoning" sub="thinking models">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Chain-of-thought</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, maxWidth: 480, lineHeight: 1.5 }}>
+              When off, reasoning (“thinking”) models are told to skip the
+              &lt;think&gt; block and answer directly. The DJ writes short scripts and
+              structured picks that don’t need reasoning — and an uncapped thought
+              chain on a small model balloons every call. Leave off unless you’re
+              running a model that genuinely needs it.
+            </div>
+          </div>
+          <Seg
+            accent
+            value={form.llm.reasoning ? 'on' : 'off'}
+            options={[
+              { id: 'off', label: 'Off' },
+              { id: 'on', label: 'On' },
+            ]}
+            onChange={v => setForm(f => ({ ...f, llm: { ...f.llm, reasoning: v === 'on' } }))}
+          />
         </div>
       </Card>
 

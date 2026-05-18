@@ -6,10 +6,13 @@
 // without a redeploy and without touching a single call site.
 //
 // The active provider/model lives in `settings.llm` (see settings.js):
-//   { provider:  'ollama' | 'anthropic' | 'openai' | 'google' | 'deepseek' | 'openrouter' | 'gateway',
+//   { provider:  'ollama' | 'openai-compatible' | 'anthropic' | 'openai' |
+//                'google' | 'deepseek' | 'openrouter' | 'gateway',
 //     model:     string,   // empty → provider default
 //     apiKey:    string,   // empty → read the provider's env var
-//     ollamaUrl: string }  // empty → config.ollama.url default (Ollama only)
+//     ollamaUrl: string,   // empty → config.ollama.url default (Ollama only)
+//     baseUrl:   string,   // OpenAI-compatible server URL (openai-compatible only)
+//     reasoning: boolean } // false → suppress <think> chain-of-thought
 //
 // `ollama` is the default and needs no key. The cloud providers are opt-in.
 
@@ -29,7 +32,27 @@ import * as settings from '../settings.js';
 const clientCache = new Map();
 
 function llmCfg() {
-  return settings.get().llm || { provider: 'ollama', model: '', apiKey: '', ollamaUrl: '' };
+  return settings.get().llm
+    || { provider: 'ollama', model: '', apiKey: '', ollamaUrl: '', baseUrl: '', reasoning: false };
+}
+
+// When reasoning is disabled, llama.cpp / vLLM / LM Studio honour
+// chat_template_kwargs.enable_thinking=false — the Qwen3 (and similar)
+// chat template then omits the <think> priming entirely, so the model
+// never starts a chain-of-thought. Injected via a fetch wrapper because
+// the AI SDK's openai provider has no first-class field for it.
+function noThinkFetch(url, init) {
+  if (init?.body && typeof init.body === 'string') {
+    try {
+      const body = JSON.parse(init.body);
+      body.chat_template_kwargs = {
+        ...(body.chat_template_kwargs || {}),
+        enable_thinking: false,
+      };
+      init = { ...init, body: JSON.stringify(body) };
+    } catch { /* not JSON — leave the request untouched */ }
+  }
+  return fetch(url, init);
 }
 
 // Ollama server URL — from settings (admin UI), falling back to the config
@@ -54,7 +77,7 @@ function resolveModelId(cfg) {
 export function languageModel() {
   const cfg = llmCfg();
   const id = resolveModelId(cfg);
-  const sig = `${cfg.provider}|${id}|${cfg.apiKey || ''}|${ollamaBaseUrl(cfg)}`;
+  const sig = `${cfg.provider}|${id}|${cfg.apiKey || ''}|${ollamaBaseUrl(cfg)}|${cfg.baseUrl || ''}|${cfg.reasoning ? 'r1' : 'r0'}`;
 
   const cached = clientCache.get(sig);
   if (cached) return cached;
@@ -69,6 +92,21 @@ export function languageModel() {
     case 'openai': {
       const provider = createOpenAI(cfg.apiKey ? { apiKey: cfg.apiKey } : {});
       model = provider(id);
+      break;
+    }
+    case 'openai-compatible': {
+      // Any self-hosted OpenAI-compatible server (llama.cpp, vLLM, LM Studio…).
+      // `.chat()` pins the /v1/chat/completions endpoint — these servers don't
+      // implement the Responses API the default `provider(id)` would target.
+      // Most accept any non-empty key, so fall back to a placeholder.
+      const provider = createOpenAI({
+        baseURL: cfg.baseUrl,
+        apiKey: cfg.apiKey || 'unused',
+        name: 'openai-compatible',
+        // Reasoning off → wrap fetch to force chat_template_kwargs.enable_thinking=false.
+        ...(cfg.reasoning ? {} : { fetch: noThinkFetch }),
+      });
+      model = provider.chat(id);
       break;
     }
     case 'google': {
