@@ -125,6 +125,9 @@ router.get('/state', (req, res) => {
 // Returns the session header plus a bounded tail of its `messages` turns
 // ({ t, role, kind, text, meta }). Public-safe: the turns only carry what the
 // DJ already says or does on-air. Returns nulls when no session is live.
+// `sfx` turns are dropped here — a sound-effect clip is an internal DJ-agent
+// action, not something said on-air, so it shouldn't surface in the listener
+// Booth feed. It stays in the session history for the agent's own context.
 // ---------------------------------------------------------------------------
 router.get('/session', (req, res) => {
   const s = session.getSession();
@@ -137,7 +140,7 @@ router.get('/session', (req, res) => {
       startedAt: s.startedAt,
       show: s.show?.name || null,
     },
-    messages: s.messages.slice(-120),
+    messages: s.messages.filter(m => m.kind !== 'sfx').slice(-120),
   });
 });
 
