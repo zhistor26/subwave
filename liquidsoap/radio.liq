@@ -249,8 +249,9 @@ thread.run(every=0.5, poll_sfx)
 # MIC CHAIN — make Piper TTS sound like it's in a broadcast studio
 # ---------------------------------------------------------------------------
 # Piper outputs flat, dry speech. Real radio voices go through a hardware mic
-# chain: highpass → compressor → presence EQ → slap reverb → makeup gain.
-# This mirrors that in Liquidsoap so the DJ stops sounding like a TTS robot.
+# chain: highpass → compressor → presence EQ → makeup gain. This mirrors that
+# in Liquidsoap (HPF/EQ skipped, see note below) so the DJ stops sounding like
+# a TTS robot.
 #
 # All numbers are tuned for an en_GB-alan-medium-ish voice; tweak in place
 # and `docker compose up -d --build liquidsoap` to audition changes.
@@ -278,9 +279,10 @@ def mic_chain(s) =
   # Final makeup gain on top of the compressor. Lifts the voice another ~3 dB
   # over the broadcast bus so it sits clearly above the ducked music bed.
   s = amplify(1.4, s)
-  # Slap delay (~40ms, feedback in dB) — adds room so the voice doesn't sit
-  # dry on top of the music. Series only; echo sums dry+delayed internally.
-  s = echo(delay=0.04, feedback=-15.0, ping_pong=false, s)
+  # NB: a ~40 ms slap echo used to sit here for "studio room". It was removed —
+  # combined with the compressor's makeup gain it lifted Piper's silent-passage
+  # noise floor and smeared it into an audible ambient wash behind spoken
+  # station IDs. The voice is intentionally dry now.
   s
 end
 
