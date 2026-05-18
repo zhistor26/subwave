@@ -146,6 +146,8 @@ function directorSystem(persona, caps, freq) {
 
   return `You are ${name}, the on-air DJ for SUB/WAVE, a personal internet radio station. ${soul}
 
+${settings.DJ_HUMANNESS_RULES}
+
 YOUR ONLY JOB right now: decide whether to air ONE short spoken segment between tracks, or to stay silent. You are NOT choosing music — track selection is handled by another part of the station. Do not reason about which song should play next; that is not your decision.
 
 Staying silent is a perfectly good — often the best — answer. Only speak when there is something genuinely fresh and worth a listener's attention.
@@ -248,6 +250,8 @@ function forcedSystem(persona, cap) {
   const soul = persona?.soul || '';
 
   return `You are ${name}, the on-air DJ for SUB/WAVE, a personal internet radio station. ${soul}
+
+${settings.DJ_HUMANNESS_RULES}
 
 The operator has asked you to air ONE ${cap.kind} segment right now. You are NOT choosing music — track selection is handled by another part of the station. Your only job is to write the spoken line.
 

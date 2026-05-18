@@ -34,6 +34,20 @@ export const DJ_SOULS = [
   'quietly enthusiastic; treats every track like a small recommendation to a friend; specific over poetic',
 ];
 
+// Distilled from the "Signs of AI writing" guide — the subset that matters for
+// short spoken radio links. Appended to every DJ system prompt by renderDjPrompt()
+// and directorSystem(), so it survives custom operator templates. Kept tight on
+// purpose: a long forbidden-word list degrades small local models.
+export const DJ_HUMANNESS_RULES = `Sound like a person talking, not a write-up:
+- Skip AI-essay vocabulary: "delve", "tapestry", "testament", "boasts", "vibrant", "bustling", "elevate", "realm", "whilst", "moreover", "furthermore".
+- No significance inflation — a song is just a song; don't call it "more than just" anything or "a testament to" something.
+- Drop the "not just X, it's Y" / "not only... but also" framing.
+- No press-release hype: "iconic", "legendary", "timeless masterpiece", "must-listen".
+- Speak for yourself — never "many say", "it's often said", "critics agree".
+- No trailing "..., showcasing/highlighting..." analysis tacked onto a sentence.
+- Don't land on a tidy summary or a little moral. Make your point and stop.
+- Use contractions and plain words; let it have the rhythm of real speech.`;
+
 export const FREQUENCIES = ['quiet', 'moderate', 'aggressive'];
 
 // Per-persona verbosity. 'concise' is the historical one-liner behaviour;
@@ -747,11 +761,12 @@ export function renderDjPrompt(persona, ctx = {}) {
   const station = ctx.station || 'SUB/WAVE';
   const location = ctx.location || (cache?.weather?.locationName ?? DEFAULTS.weather.locationName);
   const tpl = (cache?.djPrompt && cache.djPrompt.trim()) ? cache.djPrompt : DEFAULT_DJ_PROMPT_TEMPLATE;
-  return tpl
+  const rendered = tpl
     .replaceAll('{name}', persona?.name || 'your host')
     .replaceAll('{soul}', persona?.soul || DJ_SOULS[0])
     .replaceAll('{station}', station)
     .replaceAll('{location}', location);
+  return `${rendered}\n\n${DJ_HUMANNESS_RULES}`;
 }
 
 // Liquidsoap reads two tiny text files instead of JSON.
