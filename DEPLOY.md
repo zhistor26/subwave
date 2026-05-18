@@ -81,6 +81,14 @@ controller, Liquidsoap, and Icecast all agree.
 The prod compose file uses `${VAR:?must be set}` for the Icecast secrets, so
 it will refuse to start if any are missing — no silent `changeme` defaults.
 
+**`SITE_URL`** — the public domain (e.g. `https://radio.klair.co`), used for
+the Open Graph / Twitter share cards, canonical URLs, `robots.txt`, and the
+sitemap. Define it once in `docker/.env`; the prod compose file feeds it to
+the `web` service as **both** a build arg and a runtime env var (the static
+pages bake their share tags at build, the dynamic homepage renders them per
+request). Changing it needs `up -d --build web`. Unset → a localhost origin,
+which breaks social previews and search indexing.
+
 ## 4. First boot
 
 ```bash

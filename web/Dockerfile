@@ -13,6 +13,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY web/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
+# Public site origin, baked into the OG/Twitter cards, canonical URLs, robots
+# and sitemap. Next freezes metadata at build time, so this has to be present
+# *here*, not as a runtime container env var. Passed through from compose
+# (docker-compose.prod.yml → web.build.args). Unset → localhost fallback.
+ARG SITE_URL
+ENV SITE_URL=${SITE_URL}
 RUN npm run build
 
 # ---- runner ----

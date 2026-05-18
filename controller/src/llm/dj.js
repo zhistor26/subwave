@@ -25,6 +25,41 @@ export function djSystem() {
   });
 }
 
+// Persona-driven verbosity. 'concise' reproduces the historical one-liner
+// segment lengths; 'extended' roughly doubles every segment so a storytelling
+// persona can stretch out. Resolved from the on-air persona, the same way
+// djSystem() resolves it — see settings.getEffectivePersona / SCRIPT_LENGTHS.
+const LENGTH_PHRASES = {
+  concise: {
+    intro:     'Keep it brief — 2 to 4 sentences.',
+    link:      '1-2 sentences',
+    weather:   '1-2 sentences',
+    stationId: 'a 1-sentence station ident',
+    hourly:    '1 sentence',
+    adlib:     '1-2 sentences',
+    segment:   'one sentence',
+  },
+  extended: {
+    intro:     'Take your time — 5 to 8 sentences. Set a scene, tell a small story around the track.',
+    link:      '4-6 sentences',
+    weather:   '3-4 sentences',
+    stationId: 'a 2-3 sentence station ident',
+    hourly:    '2-3 sentences',
+    adlib:     '4-6 sentences',
+    segment:   'three to five sentences',
+  },
+};
+
+export function lengthMode(persona = settings.getEffectivePersona()) {
+  return persona?.scriptLength === 'extended' ? 'extended' : 'concise';
+}
+
+// The length directive for one segment kind, for the on-air (or given) persona.
+export function lengthPhrase(kind, persona) {
+  const m = LENGTH_PHRASES[lengthMode(persona)];
+  return m[kind] || m.link;
+}
+
 // Narrative angles per call type. One is picked at random and injected into
 // the user prompt as "Tone for this segment:" so consecutive generations
 // don't fall back to the same shape. Add freely — the more variety here,
@@ -261,7 +296,7 @@ export async function generateIntro({ track, context, requestedBy = null, reques
   }
   ctxLines.push(`Coming up: "${track.title}" by ${track.artist}${track.album ? ` from ${track.album}` : ''}${track.year ? ` (${track.year})` : ''}`);
 
-  const prompt = `Write a brief intro for this track. If the listener said something specific, acknowledge their words naturally — don't quote them verbatim, but weave the gist in. Never read the request out loud as-is.\n\n${ctxLines.join('\n')}`;
+  const prompt = `Write an intro for this track. ${lengthPhrase('intro')} If the listener said something specific, acknowledge their words naturally — don't quote them verbatim, but weave the gist in. Never read the request out loud as-is.\n\n${ctxLines.join('\n')}`;
 
   return djText({
     system: djSystem(),
@@ -274,7 +309,7 @@ export async function generateIntro({ track, context, requestedBy = null, reques
 export async function generateWeatherSegment(weather, time, { recap = null, context = null, recentOpeners = null } = {}) {
   const ctx = context || { weather, time };
   const ctxLines = buildContextLines(ctx);
-  ctxLines.push(`Task: a brief weather check, in character. 1-2 sentences.`);
+  ctxLines.push(`Task: a brief weather check, in character. ${lengthPhrase('weather')}.`);
   return djText({
     system: djSystem(),
     prompt: decoratePrompt(ctxLines.join('\n'), { kind: 'weather', recap, recentOpeners }),
@@ -286,7 +321,7 @@ export async function generateWeatherSegment(weather, time, { recap = null, cont
 export async function generateStationId({ recap = null, context = null, recentOpeners = null } = {}) {
   const djName = settings.getEffectivePersona()?.name || 'your host';
   const ctxLines = buildContextLines(context);
-  ctxLines.push(`Task: a 1-sentence station ident for SUB/WAVE with ${djName}. Brief, a little understated.`);
+  ctxLines.push(`Task: ${lengthPhrase('stationId')} for SUB/WAVE with ${djName}. A little understated.`);
   return djText({
     system: djSystem(),
     prompt: decoratePrompt(ctxLines.join('\n'), { kind: 'station_id', recap, recentOpeners }),
@@ -301,7 +336,7 @@ export async function generateStationId({ recap = null, context = null, recentOp
 export async function generateAdLib({ instruction, context = null, recap = null, recentOpeners = null }) {
   const ctxLines = buildContextLines(context);
   const clipped = String(instruction || '').replace(/\s+/g, ' ').trim().slice(0, 300);
-  ctxLines.push(`Task: the station operator wants you to say something on-air. Their instruction: "${clipped}". Deliver it in character as a natural spoken line — don't read the instruction back verbatim, perform it. 1-2 sentences.`);
+  ctxLines.push(`Task: the station operator wants you to say something on-air. Their instruction: "${clipped}". Deliver it in character as a natural spoken line — don't read the instruction back verbatim, perform it. ${lengthPhrase('adlib')}.`);
   return djText({
     system: djSystem(),
     prompt: decoratePrompt(ctxLines.join('\n'), { kind: 'adlib', recap, recentOpeners }),
@@ -315,7 +350,7 @@ export async function generateLink({ previous, current, context, recap = null, r
   if (previous?.title) ctxLines.push(`Just played: "${previous.title}" by ${previous.artist || 'unknown'}`);
   if (current?.title) ctxLines.push(`Now playing: "${current.title}" by ${current.artist || 'unknown'}`);
 
-  const prompt = `Write a short DJ link between tracks. Back-announce what just played and ease into what's playing now. 1-2 sentences, conversational, don't list both titles like a robot — pick one to mention specifically and treat the other lightly.\n\n${ctxLines.join('\n')}`;
+  const prompt = `Write a DJ link between tracks. Back-announce what just played and ease into what's playing now. ${lengthPhrase('link')}, conversational, don't list both titles like a robot — pick one to mention specifically and treat the other lightly.\n\n${ctxLines.join('\n')}`;
 
   return djText({
     system: djSystem(),
@@ -328,7 +363,7 @@ export async function generateLink({ previous, current, context, recap = null, r
 export async function generateHourlyTime(time, weather, { recap = null, context = null, recentOpeners = null } = {}) {
   const ctx = context || { time, weather };
   const ctxLines = buildContextLines(ctx);
-  ctxLines.push(`Task: a brief top-of-the-hour time check, in character. 1 sentence.`);
+  ctxLines.push(`Task: a brief top-of-the-hour time check, in character. ${lengthPhrase('hourly')}.`);
   return djText({
     system: djSystem(),
     prompt: decoratePrompt(ctxLines.join('\n'), { kind: 'hourly', recap, recentOpeners }),

@@ -22,6 +22,10 @@ const FREQUENCIES = [
   { id: 'moderate',   label: 'Moderate',   desc: 'Talks every 1–9 tracks · station IDs at :15 and :45 · weather every 30 min on change.' },
   { id: 'aggressive', label: 'Aggressive', desc: 'Talks every 1–3 tracks · station IDs four times an hour · weather every 15 min on change.' },
 ];
+const SCRIPT_LENGTHS = [
+  { id: 'concise',  label: 'Concise',  desc: 'Standard one-to-four sentence segments. The default.' },
+  { id: 'extended', label: 'Extended', desc: 'Longer, storytelling segments — roughly double the length across intros, links, weather and idents.' },
+];
 const ENGINES = [
   { id: 'piper',  label: 'Piper' },
   { id: 'kokoro', label: 'Kokoro' },
@@ -107,6 +111,7 @@ export default function PersonasPanel() {
             name: p.name ?? '',
             tagline: p.tagline ?? '',
             frequency: p.frequency ?? 'moderate',
+            scriptLength: p.scriptLength ?? 'concise',
             soul: p.soul ?? '',
             tts: {
               engine: p.tts?.engine ?? 'piper',
@@ -138,7 +143,7 @@ export default function PersonasPanel() {
         ...f,
         personas: [...f.personas, {
           id: clientMintId(), name: 'New persona', tagline: '',
-          frequency: 'moderate', soul: '',
+          frequency: 'moderate', scriptLength: 'concise', soul: '',
           tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bf_isabella' },
           skills: (data?.skills?.catalog || []).map(s => s.name),
         }],
@@ -175,6 +180,7 @@ export default function PersonasPanel() {
             name: p.name.trim(),
             tagline: p.tagline.trim(),
             frequency: p.frequency,
+            scriptLength: p.scriptLength,
             soul: p.soul.trim(),
             tts: {
               engine: p.tts.engine,
@@ -372,6 +378,7 @@ export default function PersonasPanel() {
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                   <Pill style={{ fontSize: 8 }}>{p.frequency}</Pill>
+                  {p.scriptLength === 'extended' && <Pill style={{ fontSize: 8 }}>extended</Pill>}
                   <Pill style={{ fontSize: 8 }}>{p.tts.engine}</Pill>
                   {p.tts.engine !== 'piper' && p.tts.voice.trim() && (
                     <Pill style={{ fontSize: 8 }}>{p.tts.voice.trim()}</Pill>
@@ -496,6 +503,40 @@ export default function PersonasPanel() {
                       </span>
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>{f.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="rule-label">script length</div>
+
+            <div className="stack-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {SCRIPT_LENGTHS.map(s => {
+                const active = s.id === (focused.scriptLength || 'concise');
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setPersona(safeIdx, { scriptLength: s.id })}
+                    style={{
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--ink)'}`,
+                      background: active ? 'var(--accent-soft)' : 'transparent',
+                      padding: 12, cursor: 'pointer', textAlign: 'left',
+                      display: 'grid', gap: 6, fontFamily: 'inherit',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        width: 10, height: 10,
+                        border: `1px solid ${active ? 'var(--accent)' : 'var(--ink)'}`,
+                        borderRadius: '50%',
+                        background: active ? 'var(--accent)' : 'transparent',
+                      }} />
+                      <span style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, color: active ? 'var(--accent)' : 'var(--ink)' }}>
+                        {s.label}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>{s.desc}</div>
                   </button>
                 );
               })}

@@ -35,7 +35,7 @@ import { config } from '../config.js';
 import { queue } from '../broadcast/queue.js';
 import * as settings from '../settings.js';
 import { djAgent } from '../llm/sdk.js';
-import { buildContextLines } from '../llm/dj.js';
+import { buildContextLines, lengthPhrase } from '../llm/dj.js';
 import { buildSegmentTools } from '../llm/segment-tools.js';
 import * as sfx from '../broadcast/sfx.js';
 
@@ -161,6 +161,8 @@ function directorSystem(persona, caps, freq, sfxCatalog) {
 
   return `You are ${name}, the on-air DJ for SUB/WAVE, a personal internet radio station. ${soul}
 
+${settings.DJ_HUMANNESS_RULES}
+
 YOUR ONLY JOB right now: decide whether to air ONE short spoken segment between tracks, or to stay silent. You are NOT choosing music — track selection is handled by another part of the station. Do not reason about which song should play next; that is not your decision.
 
 Staying silent is a perfectly good — often the best — answer. Only speak when there is something genuinely fresh and worth a listener's attention.
@@ -169,6 +171,8 @@ Capabilities available to you this tick (you may air at most ONE):
 ${capList}
 
 Use the tools to look at the real data before you decide. If the data is dull, stale, unchanged, or you have nothing fresh to add, return null and stay silent. ${tone}${sfxBlock(sfxCatalog)}
+
+Length: write ${lengthPhrase('segment', persona)} — any "one sentence" length hints in the briefs above are only a floor, not a cap.
 
 Respond with a JSON object only — no prose, no markdown:
 { "segment": { "kind": "<one of: ${caps.map(c => c.kind).join(', ')}>", "text": "<one spoken sentence in your voice>", "sfx": "<an effect name from the list, or null>" } or null, "reason": "<one short internal sentence about the SEGMENT decision — not about music>" }`;
@@ -275,12 +279,16 @@ function forcedSystem(persona, cap, sfxCatalog) {
 
   return `You are ${name}, the on-air DJ for SUB/WAVE, a personal internet radio station. ${soul}
 
+${settings.DJ_HUMANNESS_RULES}
+
 The operator has asked you to air ONE ${cap.kind} segment right now. You are NOT choosing music — track selection is handled by another part of the station. Your only job is to write the spoken line.
 
 What this segment is:
 ${cap.desc}
 
 Use any tools available to you to look at the real data first, then write the line. You MUST produce a segment — staying silent is not an option here. If the data is thin, do the best you can with what you have.${sfxBlock(sfxCatalog)}
+
+Length: write ${lengthPhrase('segment', persona)} — any "one sentence" length hint in the brief above is only a floor, not a cap.
 
 Respond with a JSON object only — no prose, no markdown:
 { "text": "<one spoken sentence in your voice>", "sfx": "<an effect name from the list, or null>" }`;

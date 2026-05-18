@@ -117,6 +117,12 @@ services:
     build:
       context: ..
       dockerfile: web/Dockerfile
+      args:
+        # Public origin for the Open Graph / Twitter share cards, canonical
+        # URLs, robots.txt and the sitemap. Needed at BUILD time for the
+        # statically-rendered routes (robots, sitemap, /listen, /landing,
+        # /manual, /setup) — Next bakes their metadata at build.
+        - SITE_URL=${SITE_URL:-}
     container_name: sub-wave-web
     restart: unless-stopped
     depends_on:
@@ -127,6 +133,11 @@ services:
       # boxes that should boot straight into the listener UI. /listen and
       # /landing are always available regardless.
       - SUBWAVE_HOMEPAGE=${SUBWAVE_HOMEPAGE:-landing}
+      # Also needed at RUNTIME: the homepage (/) is force-dynamic, so its
+      # share-card tags render per-request. Set SITE_URL to the same value as
+      # the build arg above (define it once in docker/.env and both pick it
+      # up). Unset → a localhost origin, which breaks link previews.
+      - SITE_URL=${SITE_URL:-}
     # Same-origin is the default baked into the image — Caddy routes /api/*
     # and /stream.mp3 to the right backend, so nothing extra needs setting.
 

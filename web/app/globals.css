@@ -48,6 +48,10 @@
     /* hover wash — promoted to :root so shadcn Button hover works app-wide,
      not just inside .admin-root (which re-declares it identically below). */
     --ink-soft: color-mix(in oklab, var(--ink) 6%, transparent);
+    /* form-field fill — nudged off --bg so inputs read as inset against the
+     card they sit on: darker on light, lighter on dark. Auto-flips because
+     both --bg and --ink flip in dark mode. */
+    --field: color-mix(in oklab, var(--bg) 92%, var(--ink));
 }
 
 /* Dark palette — applied either by manual override (data-theme="dark") or
@@ -225,6 +229,22 @@ body::after {
     animation: v3-tunein-pulse 2s ease-out infinite;
 }
 
+/* Connecting state — the transport-bar status dot breathes while the stream
+   buffers. A plain opacity pulse so it reads on the dark Tune In button,
+   where the expanding-ring v3-tunein-pulse would be ink-on-ink. */
+@keyframes v3-connecting-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.25;
+    }
+}
+.v3-connecting-pulse {
+    animation: v3-connecting-pulse 1s ease-in-out infinite;
+}
+
 /* Sonner toast styling — sharp ink-bordered cream cards. */
 .v3-toast {
     background: var(--bg);
@@ -248,7 +268,8 @@ body::after {
     .v3-drawer-content,
     .v3-drawer-overlay,
     .v3-blink,
-    .v3-tunein-pulse {
+    .v3-tunein-pulse,
+    .v3-connecting-pulse {
         animation: none !important;
     }
 }
@@ -337,6 +358,41 @@ body::after {
     padding: 24px clamp(16px, 4vw, 56px) 80px;
     position: relative;
     z-index: 1;
+}
+
+/* Masthead head row — 3-column grid keeps the wordmark optically centred
+   between the VOL dateline and the ON AIR status. Below 560px the side
+   blocks share one row and the wordmark drops to its own centred line, so
+   it never wraps awkwardly against the side blocks. */
+.bs-masthead-head {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 24px;
+    padding: 24px 0 16px;
+}
+.bs-masthead-meta {
+    min-width: 0;
+}
+.bs-masthead-mark {
+    text-align: center;
+}
+.bs-masthead-status {
+    justify-content: flex-end;
+}
+@media (max-width: 560px) {
+    .bs-masthead-head {
+        align-items: center;
+        gap: 10px;
+    }
+    /* The VOL/NO dateline is dropped on mobile so the theme toggle, the
+       wordmark and the ON AIR status sit together on a single row. */
+    .bs-masthead-issue {
+        display: none;
+    }
+    .bs-wordmark {
+        font-size: clamp(38px, 13vw, 64px);
+    }
 }
 
 /* Masthead wordmark — outsized mono, extreme weight, tight tracking. */
@@ -908,6 +964,40 @@ body::after {
     border: 1px solid var(--ink);
 }
 
+/* Miniature spinning record for the player header — same vocabulary as
+   .bs-dj-glyph on the landing page, sized for an inline wordmark. Spins
+   only while tuned in, so the mark doubles as a play indicator. */
+.player-mark {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    align-self: center;
+    border-radius: 50%;
+    border: 1px solid var(--ink);
+    background: repeating-conic-gradient(
+        from 0deg,
+        var(--ink) 0deg 9deg,
+        transparent 9deg 18deg
+    );
+    position: relative;
+}
+.player-mark::after {
+    content: "";
+    position: absolute;
+    inset: 33%;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--bg);
+}
+.player-mark[data-spinning='true'] {
+    animation: bs-dj-spin 6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .player-mark[data-spinning='true'] {
+        animation: none;
+    }
+}
+
 .bs-dj-handle {
     margin: 0 0 16px;
     font-size: clamp(40px, 6vw, 84px);
@@ -1226,6 +1316,63 @@ body::after {
 }
 .bs-rebuild-table td:last-child {
     color: var(--muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   KBD + DOC TABLE — keyboard-key caps and the generic reference tables used
+   on the Keyboard Shortcuts and Agent Access manual pages.
+   ───────────────────────────────────────────────────────────────────────── */
+.bs-kbd {
+    display: inline-block;
+    min-width: 24px;
+    padding: 2px 7px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+    text-align: center;
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    box-shadow: 1px 1px 0 var(--ink);
+}
+.bs-kbd-sep {
+    margin: 0 5px;
+    font-size: 11px;
+    color: var(--muted);
+}
+.bs-doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 8px 0;
+}
+.bs-doc-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 1px solid var(--ink);
+}
+.bs-doc-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--separator-strong);
+    vertical-align: top;
+}
+.bs-doc-table tr:last-child td {
+    border-bottom: 0;
+}
+.bs-doc-table td:first-child {
+    white-space: nowrap;
+    color: var(--ink);
+}
+.bs-doc-table td:last-child {
+    color: var(--muted);
+}
+.bs-doc-table code {
+    font-size: 0.92em;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

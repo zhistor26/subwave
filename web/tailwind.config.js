@@ -1,3 +1,5 @@
+import tailwindcssAnimate from 'tailwindcss-animate';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['selector', '[data-theme="dark"]'],
@@ -11,6 +13,7 @@ export default {
         // shadcn/ui semantic tokens — bridged in app/globals.css
         border: 'var(--border)',
         input: 'var(--input)',
+        field: 'var(--field)',
         ring: 'var(--ring)',
         background: 'var(--background)',
         foreground: 'var(--foreground)',
@@ -68,5 +71,5 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [tailwindcssAnimate],
 };

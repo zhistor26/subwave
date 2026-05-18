@@ -19,17 +19,18 @@ import * as dj from '../llm/dj.js';
 import { djAgent } from '../llm/sdk.js';
 import { buildPickerTools } from '../llm/tools.js';
 import { recordPick } from '../llm/log.js';
+import { withTrace } from '../observability/events.js';
 
 const PICK_SCHEMA = z.object({
   id: z.string().describe('the exact song id, as returned by a tool call'),
   reason: z.string().describe('one short internal sentence on why this track'),
-  say: z.string().nullable().describe('a short spoken link, or null to stay silent'),
+  say: z.string().nullable().describe('a spoken link in the DJ voice, or null to stay silent'),
 });
 
 const REQUEST_SCHEMA = z.object({
   id: z.string().describe('the exact song id, as returned by a tool call'),
   ack: z.string().describe('short on-air acknowledgement, max 20 words'),
-  intro: z.string().describe('a natural 1-2 sentence DJ intro for the track'),
+  intro: z.string().describe('a natural DJ intro for the track, in the DJ voice'),
 });
 
 function persona() {
@@ -53,7 +54,7 @@ ${dj.PICKER_CRITERIA}
 Respond with a JSON object only — no prose, no markdown:
 { "id": "<exact id a tool returned>", "reason": "<one internal sentence>", "say": ${
     wantLink
-      ? '"<a natural 1-2 sentence spoken link in your voice: ease on from what just played into what is coming, vary your opener>"'
+      ? `"<a natural spoken link in your voice (${dj.lengthPhrase('link')}): ease on from what just played into what is coming, vary your opener>"`
       : 'null'
   } }
 ${wantLink ? '' : 'Set "say" to null this time — do not talk over the music.'}`;
@@ -66,7 +67,7 @@ function requestSystem() {
 The messages above are the live session. The last message is a listener request. Use the tools to find a track in the library that genuinely fits what they asked for, then choose ONE whose id a tool returned. Do not invent ids.
 
 Respond with a JSON object only — no prose, no markdown:
-{ "id": "<exact id a tool returned>", "ack": "<short on-air acknowledgement, max 20 words>", "intro": "<a natural 1-2 sentence intro that weaves in what the listener asked for without reading it back verbatim>" }`;
+{ "id": "<exact id a tool returned>", "ack": "<short on-air acknowledgement, max 20 words>", "intro": "<a natural intro (${dj.lengthPhrase('intro')}) that weaves in what the listener asked for without reading it back verbatim>" }`;
 }
 
 function trackFields(song) {
@@ -155,24 +156,26 @@ async function pickViaPool(queue, ctx, { wantLink, previous, current }) {
 // empty. Posts the event to the session, then picks the next track (and an
 // optional between-track link) via the agent, falling back to the pool.
 export async function runTrackEvent(queue, ctx, { wantLink }) {
-  const current = queue.current?.track || null;
-  const previous = queue.history[0]?.track || null;
+  return withTrace({ kind: 'track-event', wantLink }, async () => {
+    const current = queue.current?.track || null;
+    const previous = queue.history[0]?.track || null;
 
-  const eventText = `Now playing "${current?.title}" by ${current?.artist}`
-    + (previous ? ` (after "${previous.title}" by ${previous.artist})` : '')
-    + '. Pick the track to play next.'
-    + (wantLink ? ' Also write a short link to speak over this track now.' : ' Stay silent — no link this time.');
-  session.appendTurn({ role: 'event', kind: 'pick', text: eventText });
+    const eventText = `Now playing "${current?.title}" by ${current?.artist}`
+      + (previous ? ` (after "${previous.title}" by ${previous.artist})` : '')
+      + '. Pick the track to play next.'
+      + (wantLink ? ' Also write a short link to speak over this track now.' : ' Stay silent — no link this time.');
+    session.appendTurn({ role: 'event', kind: 'pick', text: eventText });
 
-  if (settings.get().llm?.pickerAgent) {
-    try {
-      await pickViaAgent(queue, { wantLink });
-      return;
-    } catch (err) {
-      queue.log('error', `DJ agent pick failed: ${err.message} — falling back to pool`);
+    if (settings.get().llm?.pickerAgent) {
+      try {
+        await pickViaAgent(queue, { wantLink });
+        return;
+      } catch (err) {
+        queue.log('error', `DJ agent pick failed: ${err.message} — falling back to pool`);
+      }
     }
-  }
-  await pickViaPool(queue, ctx, { wantLink, previous, current });
+    await pickViaPool(queue, ctx, { wantLink, previous, current });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -187,35 +190,37 @@ export async function runTrackEvent(queue, ctx, { wantLink }) {
 export async function runRequest(queue, ctx, { requester, text }) {
   if (!settings.get().llm?.pickerAgent) return null;
 
-  const recentIds = queue.recentlyPlayedIds(25);
-  const { tools, seen } = buildPickerTools({ recentIds });
+  return withTrace({ kind: 'request', requester }, async () => {
+    const recentIds = queue.recentlyPlayedIds(25);
+    const { tools, seen } = buildPickerTools({ recentIds });
 
-  const { object, toolCalls } = await djAgent({
-    system: requestSystem(),
-    messages: session.windowMessages(),
-    tools,
-    schema: REQUEST_SCHEMA,
-    kind: 'djAgentRequest',
+    const { object, toolCalls } = await djAgent({
+      system: requestSystem(),
+      messages: session.windowMessages(),
+      tools,
+      schema: REQUEST_SCHEMA,
+      kind: 'djAgentRequest',
+    });
+
+    const song = object?.id ? seen.get(object.id) : null;
+    if (!song) throw new Error(`request agent returned unknown id ${object?.id}`);
+
+    const intro = typeof object.intro === 'string' ? object.intro.trim() : '';
+    await queue.push({
+      track: trackFields(song),
+      requestedBy: requester,
+      intent: 'listener request',
+      introScript: intro || null,
+    });
+    session.appendTurn({
+      role: 'dj', kind: 'request',
+      text: intro || object.ack || `Queued "${song.title}".`,
+      meta: { trackId: song.id, requester, toolCalls },
+    });
+
+    return {
+      ack: object.ack || `Coming up for you, ${requester}.`,
+      track: { title: song.title, artist: song.artist },
+    };
   });
-
-  const song = object?.id ? seen.get(object.id) : null;
-  if (!song) throw new Error(`request agent returned unknown id ${object?.id}`);
-
-  const intro = typeof object.intro === 'string' ? object.intro.trim() : '';
-  await queue.push({
-    track: trackFields(song),
-    requestedBy: requester,
-    intent: 'listener request',
-    introScript: intro || null,
-  });
-  session.appendTurn({
-    role: 'dj', kind: 'request',
-    text: intro || object.ack || `Queued "${song.title}".`,
-    meta: { trackId: song.id, requester, toolCalls },
-  });
-
-  return {
-    ack: object.ack || `Coming up for you, ${requester}.`,
-    track: { title: song.title, artist: song.artist },
-  };
 }

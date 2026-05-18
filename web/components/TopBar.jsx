@@ -23,9 +23,14 @@ export default function TopBar({ tunedIn, context, djName, activeShow, listeners
       style={{ borderBottom: '1px solid var(--ink)' }}
     >
       <div className="flex items-baseline gap-2 sm:gap-[14px] min-w-0">
+        <span
+          className="player-mark"
+          data-spinning={tunedIn ? 'true' : undefined}
+          aria-hidden="true"
+        />
         <span className="v3-eyebrow shrink-0">SUB/WAVE</span>
         {showName && (
-          <span className="v3-caption truncate shrink-0" style={{ color: 'var(--ink)' }} title={showName}>
+          <span className="v3-caption truncate min-w-0" style={{ color: 'var(--ink)' }} title={showName}>
             ▸ {showName}
           </span>
         )}
@@ -81,8 +86,8 @@ export default function TopBar({ tunedIn, context, djName, activeShow, listeners
             title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
           >
             {theme === 'dark'
-              ? <Sun className="w-3.5 h-3.5" />
-              : <Moon className="w-3.5 h-3.5" />}
+              ? <Sun className="w-3.5 h-3.5" aria-hidden="true" />
+              : <Moon className="w-3.5 h-3.5" aria-hidden="true" />}
           </button>
         )}
       </div>

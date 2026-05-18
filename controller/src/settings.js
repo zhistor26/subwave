@@ -34,7 +34,26 @@ export const DJ_SOULS = [
   'quietly enthusiastic; treats every track like a small recommendation to a friend; specific over poetic',
 ];
 
+// Distilled from the "Signs of AI writing" guide — the subset that matters for
+// short spoken radio links. Appended to every DJ system prompt by renderDjPrompt()
+// and directorSystem(), so it survives custom operator templates. Kept tight on
+// purpose: a long forbidden-word list degrades small local models.
+export const DJ_HUMANNESS_RULES = `Sound like a person talking, not a write-up:
+- Skip AI-essay vocabulary: "delve", "tapestry", "testament", "boasts", "vibrant", "bustling", "elevate", "realm", "whilst", "moreover", "furthermore".
+- No significance inflation — a song is just a song; don't call it "more than just" anything or "a testament to" something.
+- Drop the "not just X, it's Y" / "not only... but also" framing.
+- No press-release hype: "iconic", "legendary", "timeless masterpiece", "must-listen".
+- Speak for yourself — never "many say", "it's often said", "critics agree".
+- No trailing "..., showcasing/highlighting..." analysis tacked onto a sentence.
+- Don't land on a tidy summary or a little moral. Make your point and stop.
+- Use contractions and plain words; let it have the rhythm of real speech.`;
+
 export const FREQUENCIES = ['quiet', 'moderate', 'aggressive'];
+
+// Per-persona verbosity. 'concise' is the historical one-liner behaviour;
+// 'extended' roughly doubles every spoken segment for a storytelling DJ.
+// See llm/dj.js LENGTH_PHRASES for the actual length directives.
+export const SCRIPT_LENGTHS = ['concise', 'extended'];
 
 // TTS engines. Every spoken segment is voiced by the on-air persona's own
 // `tts` config (see audio/tts.js); only jingle rendering falls back to the
@@ -46,8 +65,10 @@ export const TTS_ENGINES = ['piper', 'kokoro', 'cloud'];
 
 // LLM provider abstraction. `ollama` is the homelab default; the cloud
 // providers are opt-in and resolved by llm/provider.js. `openrouter` and
-// `gateway` are aggregators — one key, any vendor's models.
-export const LLM_PROVIDERS = ['ollama', 'anthropic', 'openai', 'google', 'deepseek', 'openrouter', 'gateway'];
+// `gateway` are aggregators — one key, any vendor's models. `openai-compatible`
+// targets any self-hosted OpenAI-compatible server (llama.cpp, vLLM, LM Studio,
+// etc.) via the operator-supplied `llm.baseUrl`.
+export const LLM_PROVIDERS = ['ollama', 'openai-compatible', 'anthropic', 'openai', 'google', 'deepseek', 'openrouter', 'gateway'];
 
 // Cloud TTS vendors usable by the `cloud` engine.
 export const TTS_CLOUD_PROVIDERS = ['openai', 'elevenlabs'];
@@ -110,6 +131,7 @@ export const SEED_PERSONAS = [
     name: 'Marlowe',
     tagline: 'Late-night company and well-chosen records.',
     frequency: 'moderate',
+    scriptLength: 'concise',
     soul: DJ_SOULS[0],
     tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bm_george' },
   },
@@ -118,6 +140,7 @@ export const SEED_PERSONAS = [
     name: 'Wren',
     tagline: 'Small details, quiet rooms, one good image.',
     frequency: 'quiet',
+    scriptLength: 'concise',
     soul: DJ_SOULS[1],
     tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bf_alice' },
   },
@@ -126,6 +149,7 @@ export const SEED_PERSONAS = [
     name: 'Hale',
     tagline: 'Says less, means more. Leaves space.',
     frequency: 'moderate',
+    scriptLength: 'concise',
     soul: DJ_SOULS[3],
     tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bm_daniel' },
   },
@@ -162,6 +186,16 @@ const DEFAULTS = {
     // Ollama server URL. Empty → fall back to config.ollama.url. Only used
     // when provider === 'ollama'.
     ollamaUrl: '',
+    // OpenAI-compatible server base URL, including the /v1 suffix
+    // (e.g. http://192.168.1.101:8080/v1). Required — and only used —
+    // when provider === 'openai-compatible'.
+    baseUrl: '',
+    // Whether to let reasoning ("thinking") models emit a chain-of-thought
+    // before the answer. Off by default: the DJ writes short scripts and
+    // structured picks that don't benefit from reasoning, and an uncapped
+    // <think> block on a small model balloons every call (see llm/sdk.js
+    // token caps + llm/provider.js no-think fetch).
+    reasoning: false,
     // When on, the session DJ agent drives track-picking, links and listener
     // requests as a tool-loop over the session chat history (broadcast/
     // dj-agent.js). When off, the stateless pool picker runs instead — still
@@ -226,6 +260,7 @@ function normalizePersona(raw) {
     name,
     tagline: typeof raw.tagline === 'string' ? raw.tagline.trim().slice(0, 80) : '',
     frequency: FREQUENCIES.includes(raw.frequency) ? raw.frequency : 'moderate',
+    scriptLength: SCRIPT_LENGTHS.includes(raw.scriptLength) ? raw.scriptLength : 'concise',
     soul,
     tts: normalizeTts(raw.tts),
     skills: normalizeSkills(raw.skills),
@@ -362,6 +397,12 @@ export async function load() {
       ollamaUrl: typeof stored.llm?.ollamaUrl === 'string'
         ? stored.llm.ollamaUrl.trim()
         : DEFAULTS.llm.ollamaUrl,
+      baseUrl: typeof stored.llm?.baseUrl === 'string'
+        ? stored.llm.baseUrl.trim()
+        : DEFAULTS.llm.baseUrl,
+      reasoning: typeof stored.llm?.reasoning === 'boolean'
+        ? stored.llm.reasoning
+        : DEFAULTS.llm.reasoning,
       pickerAgent: typeof stored.llm?.pickerAgent === 'boolean'
         ? stored.llm.pickerAgent
         : DEFAULTS.llm.pickerAgent,
@@ -440,6 +481,15 @@ function validatePersonasStrict(raw) {
     if (!FREQUENCIES.includes(item.frequency)) {
       throw new Error(`personas[${i}].frequency must be one of: ${FREQUENCIES.join(', ')}`);
     }
+    // scriptLength — optional. Absent → 'concise' (the default and the
+    // historical behaviour); present must be a known value.
+    let scriptLength = 'concise';
+    if (item.scriptLength !== undefined && item.scriptLength !== null) {
+      if (!SCRIPT_LENGTHS.includes(item.scriptLength)) {
+        throw new Error(`personas[${i}].scriptLength must be one of: ${SCRIPT_LENGTHS.join(', ')}`);
+      }
+      scriptLength = item.scriptLength;
+    }
     const tts = validateTtsBlock(item.tts, `personas[${i}]`);
     // skills — optional. Absent → null ("all skills", legacy/default). Present
     // → an explicit slug array (the UI always sends one once edited).
@@ -464,7 +514,7 @@ function validatePersonasStrict(raw) {
     let id = (typeof item.id === 'string' && ID_RE.test(item.id)) ? item.id : mintId('p_');
     if (seen.has(id)) id = mintId('p_');
     seen.add(id);
-    return { id, name, tagline, frequency: item.frequency, soul, tts, skills };
+    return { id, name, tagline, frequency: item.frequency, scriptLength, soul, tts, skills };
   });
 }
 
@@ -649,8 +699,23 @@ export async function update(patch) {
       }
       next.llm.ollamaUrl = v.replace(/\/+$/, '');  // strip trailing slashes
     }
+    if (l.baseUrl !== undefined) {
+      const v = String(l.baseUrl).trim();
+      if (v.length > 200) throw new Error('llm.baseUrl must be 0-200 chars');
+      if (v && !/^https?:\/\//i.test(v)) {
+        throw new Error('llm.baseUrl must start with http:// or https://');
+      }
+      next.llm.baseUrl = v.replace(/\/+$/, '');  // strip trailing slashes
+    }
+    if (l.reasoning !== undefined) {
+      next.llm.reasoning = !!l.reasoning;
+    }
     if (l.pickerAgent !== undefined) {
       next.llm.pickerAgent = !!l.pickerAgent;
+    }
+    // An OpenAI-compatible provider is useless without a server to talk to.
+    if (next.llm.provider === 'openai-compatible' && !next.llm.baseUrl) {
+      throw new Error('llm.baseUrl is required when provider is "openai-compatible"');
     }
   }
   if ('skills' in patch) {
@@ -746,11 +811,12 @@ export function renderDjPrompt(persona, ctx = {}) {
   const station = ctx.station || 'SUB/WAVE';
   const location = ctx.location || (cache?.weather?.locationName ?? DEFAULTS.weather.locationName);
   const tpl = (cache?.djPrompt && cache.djPrompt.trim()) ? cache.djPrompt : DEFAULT_DJ_PROMPT_TEMPLATE;
-  return tpl
+  const rendered = tpl
     .replaceAll('{name}', persona?.name || 'your host')
     .replaceAll('{soul}', persona?.soul || DJ_SOULS[0])
     .replaceAll('{station}', station)
     .replaceAll('{location}', location);
+  return `${rendered}\n\n${DJ_HUMANNESS_RULES}`;
 }
 
 // Liquidsoap reads two tiny text files instead of JSON.

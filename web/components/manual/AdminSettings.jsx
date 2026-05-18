@@ -4,7 +4,7 @@ import ManualPage from './ManualPage';
 export default function AdminSettings() {
   return (
     <ManualPage
-      eyebrow="MANUAL · 04"
+      eyebrow="MANUAL · 05"
       title="Admin & settings."
       intro="For the operator running the station. The admin console is where you shape the DJ, choose the AI providers, schedule shows, and manage the jingles — no redeploy required."
       current="/manual/admin"
