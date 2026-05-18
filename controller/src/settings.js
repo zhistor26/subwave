@@ -36,6 +36,11 @@ export const DJ_SOULS = [
 
 export const FREQUENCIES = ['quiet', 'moderate', 'aggressive'];
 
+// Per-persona verbosity. 'concise' is the historical one-liner behaviour;
+// 'extended' roughly doubles every spoken segment for a storytelling DJ.
+// See llm/dj.js LENGTH_PHRASES for the actual length directives.
+export const SCRIPT_LENGTHS = ['concise', 'extended'];
+
 // TTS engines. Every spoken segment is voiced by the on-air persona's own
 // `tts` config (see audio/tts.js); only jingle rendering falls back to the
 // global defaultEngine.
@@ -110,6 +115,7 @@ export const SEED_PERSONAS = [
     name: 'Marlowe',
     tagline: 'Late-night company and well-chosen records.',
     frequency: 'moderate',
+    scriptLength: 'concise',
     soul: DJ_SOULS[0],
     tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bm_george' },
   },
@@ -118,6 +124,7 @@ export const SEED_PERSONAS = [
     name: 'Wren',
     tagline: 'Small details, quiet rooms, one good image.',
     frequency: 'quiet',
+    scriptLength: 'concise',
     soul: DJ_SOULS[1],
     tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bf_alice' },
   },
@@ -126,6 +133,7 @@ export const SEED_PERSONAS = [
     name: 'Hale',
     tagline: 'Says less, means more. Leaves space.',
     frequency: 'moderate',
+    scriptLength: 'concise',
     soul: DJ_SOULS[3],
     tts: { engine: 'piper', cloudProvider: 'openai', voice: 'bm_daniel' },
   },
@@ -220,6 +228,7 @@ function normalizePersona(raw) {
     name,
     tagline: typeof raw.tagline === 'string' ? raw.tagline.trim().slice(0, 80) : '',
     frequency: FREQUENCIES.includes(raw.frequency) ? raw.frequency : 'moderate',
+    scriptLength: SCRIPT_LENGTHS.includes(raw.scriptLength) ? raw.scriptLength : 'concise',
     soul,
     tts: normalizeTts(raw.tts),
     skills: normalizeSkills(raw.skills),
@@ -429,6 +438,15 @@ function validatePersonasStrict(raw) {
     if (!FREQUENCIES.includes(item.frequency)) {
       throw new Error(`personas[${i}].frequency must be one of: ${FREQUENCIES.join(', ')}`);
     }
+    // scriptLength — optional. Absent → 'concise' (the default and the
+    // historical behaviour); present must be a known value.
+    let scriptLength = 'concise';
+    if (item.scriptLength !== undefined && item.scriptLength !== null) {
+      if (!SCRIPT_LENGTHS.includes(item.scriptLength)) {
+        throw new Error(`personas[${i}].scriptLength must be one of: ${SCRIPT_LENGTHS.join(', ')}`);
+      }
+      scriptLength = item.scriptLength;
+    }
     const tts = validateTtsBlock(item.tts, `personas[${i}]`);
     // skills — optional. Absent → null ("all skills", legacy/default). Present
     // → an explicit slug array (the UI always sends one once edited).
@@ -453,7 +471,7 @@ function validatePersonasStrict(raw) {
     let id = (typeof item.id === 'string' && ID_RE.test(item.id)) ? item.id : mintId('p_');
     if (seen.has(id)) id = mintId('p_');
     seen.add(id);
-    return { id, name, tagline, frequency: item.frequency, soul, tts, skills };
+    return { id, name, tagline, frequency: item.frequency, scriptLength, soul, tts, skills };
   });
 }
 

@@ -35,7 +35,7 @@ import { config } from '../config.js';
 import { queue } from '../broadcast/queue.js';
 import * as settings from '../settings.js';
 import { djAgent } from '../llm/sdk.js';
-import { buildContextLines } from '../llm/dj.js';
+import { buildContextLines, lengthPhrase } from '../llm/dj.js';
 import { buildSegmentTools } from '../llm/segment-tools.js';
 
 // Capability table — the single source of truth for the DJ's between-track
@@ -86,7 +86,7 @@ const CAPABILITIES = [
 const SEGMENT_SCHEMA = z.object({
   segment: z.object({
     kind: z.enum(['weather', 'news', 'traffic', 'random-facts', 'web-search']),
-    text: z.string().describe('the spoken line — one sentence, in the DJ voice'),
+    text: z.string().describe('the spoken line, in the DJ voice'),
   }).nullable().describe('the segment to air, or null to stay silent'),
   reason: z.string().describe('one short internal sentence on the decision'),
 });
@@ -155,8 +155,10 @@ ${capList}
 
 Use the tools to look at the real data before you decide. If the data is dull, stale, unchanged, or you have nothing fresh to add, return null and stay silent. ${tone}
 
+Length: write ${lengthPhrase('segment', persona)} — any "one sentence" length hints in the briefs above are only a floor, not a cap.
+
 Respond with a JSON object only — no prose, no markdown:
-{ "segment": { "kind": "<one of: ${caps.map(c => c.kind).join(', ')}>", "text": "<one spoken sentence in your voice>" } or null, "reason": "<one short internal sentence about the SEGMENT decision — not about music>" }`;
+{ "segment": { "kind": "<one of: ${caps.map(c => c.kind).join(', ')}>", "text": "<the spoken line in your voice>" } or null, "reason": "<one short internal sentence about the SEGMENT decision — not about music>" }`;
 }
 
 // The concrete situation handed to the agent as its single user turn. Built
@@ -254,8 +256,10 @@ ${cap.desc}
 
 Use any tools available to you to look at the real data first, then write the line. You MUST produce a segment — staying silent is not an option here. If the data is thin, do the best you can with what you have.
 
+Length: write ${lengthPhrase('segment', persona)} — any "one sentence" length hint in the brief above is only a floor, not a cap.
+
 Respond with a JSON object only — no prose, no markdown:
-{ "text": "<one spoken sentence in your voice>" }`;
+{ "text": "<the spoken line in your voice>" }`;
 }
 
 // Operator override — fire one capability on demand, bypassing cooldowns, the

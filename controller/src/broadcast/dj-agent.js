@@ -23,13 +23,13 @@ import { recordPick } from '../llm/log.js';
 const PICK_SCHEMA = z.object({
   id: z.string().describe('the exact song id, as returned by a tool call'),
   reason: z.string().describe('one short internal sentence on why this track'),
-  say: z.string().nullable().describe('a short spoken link, or null to stay silent'),
+  say: z.string().nullable().describe('a spoken link in the DJ voice, or null to stay silent'),
 });
 
 const REQUEST_SCHEMA = z.object({
   id: z.string().describe('the exact song id, as returned by a tool call'),
   ack: z.string().describe('short on-air acknowledgement, max 20 words'),
-  intro: z.string().describe('a natural 1-2 sentence DJ intro for the track'),
+  intro: z.string().describe('a natural DJ intro for the track, in the DJ voice'),
 });
 
 function persona() {
@@ -53,7 +53,7 @@ ${dj.PICKER_CRITERIA}
 Respond with a JSON object only — no prose, no markdown:
 { "id": "<exact id a tool returned>", "reason": "<one internal sentence>", "say": ${
     wantLink
-      ? '"<a natural 1-2 sentence spoken link in your voice: ease on from what just played into what is coming, vary your opener>"'
+      ? `"<a natural spoken link in your voice (${dj.lengthPhrase('link')}): ease on from what just played into what is coming, vary your opener>"`
       : 'null'
   } }
 ${wantLink ? '' : 'Set "say" to null this time — do not talk over the music.'}`;
@@ -66,7 +66,7 @@ function requestSystem() {
 The messages above are the live session. The last message is a listener request. Use the tools to find a track in the library that genuinely fits what they asked for, then choose ONE whose id a tool returned. Do not invent ids.
 
 Respond with a JSON object only — no prose, no markdown:
-{ "id": "<exact id a tool returned>", "ack": "<short on-air acknowledgement, max 20 words>", "intro": "<a natural 1-2 sentence intro that weaves in what the listener asked for without reading it back verbatim>" }`;
+{ "id": "<exact id a tool returned>", "ack": "<short on-air acknowledgement, max 20 words>", "intro": "<a natural intro (${dj.lengthPhrase('intro')}) that weaves in what the listener asked for without reading it back verbatim>" }`;
 }
 
 function trackFields(song) {
