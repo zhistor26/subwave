@@ -99,7 +99,13 @@ async function enqueuePick(queue, song, reason, source) {
 
 async function pickViaAgent(queue, { wantLink }) {
   const recentIds = queue.recentlyPlayedIds(25);
-  const { tools, seen } = buildPickerTools({ recentIds });
+  // Block the last ~10 distinct artists outright — recentIds alone can't stop a
+  // deep-catalogue artist (e.g. a full discography) reappearing every few
+  // tracks, since each fresh track has an id the agent hasn't seen.
+  const recentArtists = new Set(
+    queue.getRecentArtists(10).map(a => a.toLowerCase().trim()).filter(Boolean),
+  );
+  const { tools, seen } = buildPickerTools({ recentIds, recentArtists });
 
   const { object, steps, toolCalls } = await djAgent({
     system: pickSystem(wantLink),

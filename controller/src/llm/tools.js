@@ -22,18 +22,38 @@ function slim(s) {
   };
 }
 
+function artistKey(s) {
+  return (s.artist || '').toLowerCase().trim();
+}
+
+// Most songs by any one artist allowed across a whole pick, mirroring
+// music/picker.js's MAX_PER_ARTIST — keeps a deep catalogue artist from
+// flooding the candidate pool just because random/search keeps surfacing them.
+const MAX_PER_ARTIST = 3;
+
 // Builds a fresh tool set scoped to one pick. `recentIds` (recently-played
-// song ids) is filtered out inside every tool so the agent never has to be
-// told "avoid these" — it simply can't see them.
-export function buildPickerTools({ recentIds = new Set() } = {}) {
+// song ids) and `recentArtists` (lowercased recently-played artist names) are
+// filtered out inside every tool so the agent never has to be told "avoid
+// these" — it simply can't see them. `recentArtists` is left empty on the
+// listener-request path so a request for a recent artist still resolves.
+export function buildPickerTools({ recentIds = new Set(), recentArtists = new Set() } = {}) {
   const seen = new Map(); // id → slim song, accumulated across all tool calls
+  const artistCounts = new Map(); // artist key → songs already accepted into `seen`
 
   // Filter recents, slim, and record into `seen` so the picker can resolve
-  // the agent's final id choice to a full track.
+  // the agent's final id choice to a full track. Drops songs by an artist that
+  // played in the recent window, and caps any one artist's share of the pool.
   const collect = (list, cap = 12) => {
     const out = [];
     for (const s of list || []) {
       if (!s?.id || recentIds.has(s.id) || seen.has(s.id)) continue;
+      const key = artistKey(s);
+      if (key && recentArtists.has(key)) continue;
+      if (key) {
+        const n = artistCounts.get(key) || 0;
+        if (n >= MAX_PER_ARTIST) continue;
+        artistCounts.set(key, n + 1);
+      }
       const slimmed = slim(s);
       seen.set(s.id, slimmed);
       out.push(slimmed);
