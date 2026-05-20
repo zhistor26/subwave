@@ -510,7 +510,7 @@ def make_stream_output() =
     %mp3(bitrate=192, samplerate=44100, stereo=true),
     id="stream",
     fallible=true,
-    host="icecast",
+    host=environment.get(default="icecast", "ICECAST_HOST"),
     port=7702,
     password=environment.get("ICECAST_SOURCE_PASSWORD"),
     mount="/stream.mp3",
