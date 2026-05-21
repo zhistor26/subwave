@@ -1,4 +1,5 @@
-import { SITE_URL } from '../lib/site';
+import type { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/site';
 
 // Served by Next at /sitemap.xml. Public, indexable routes only — the
 // admin console (/admin/*) is intentionally excluded.
@@ -24,7 +25,7 @@ const ROUTES = [
   '/setup/updates',
 ];
 
-export default function sitemap() {
+export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
   return ROUTES.map((route) => ({
     url: `${SITE_URL}${route}`,

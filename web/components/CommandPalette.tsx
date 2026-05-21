@@ -9,6 +9,29 @@ import {
   CommandItem,
 } from './ui/command';
 import { Kbd } from './ui/kbd';
+import type { ThemeMode } from '@/lib/types';
+
+export type PlayerDrawer = 'timeline' | 'booth' | 'request';
+
+export interface CommandPaletteProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  container: HTMLElement | null;
+  tunedIn: boolean;
+  theme: ThemeMode | 'light' | 'dark';
+  muted: boolean;
+  onTune: () => void;
+  onOpenDrawer: (kind: PlayerDrawer) => void;
+  onToggleTheme: () => void;
+  onToggleMute: () => void;
+  onShowShortcuts: () => void;
+}
+
+interface PaletteItem {
+  label: string;
+  hint: string;
+  onSelect: () => void;
+}
 
 /* ⌘K command palette for the listener-facing player. Scope is player
    actions only — no jumping to admin/site routes. Each item runs its
@@ -25,13 +48,13 @@ export default function CommandPalette({
   onToggleTheme,
   onToggleMute,
   onShowShortcuts,
-}) {
-  const run = (fn) => () => {
+}: CommandPaletteProps) {
+  const run = (fn: () => void) => () => {
     onOpenChange(false);
     fn();
   };
 
-  const items = [
+  const items: PaletteItem[] = [
     { label: tunedIn ? 'Tune out' : 'Tune in', hint: 'Space', onSelect: run(onTune) },
     { label: 'Open Timeline', hint: '1', onSelect: run(() => onOpenDrawer('timeline')) },
     { label: 'Open Booth feed', hint: '2', onSelect: run(() => onOpenDrawer('booth')) },

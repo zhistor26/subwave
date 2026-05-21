@@ -10,6 +10,7 @@ export interface NowPlayingTrack {
   title?: string;
   artist?: string;
   album?: string;
+  year?: number;
   duration?: number;
   subsonic_id?: string;
 }
@@ -52,6 +53,8 @@ export interface DjState {
 }
 
 export interface ListenerCount {
+  current?: number;
+  peak?: number;
   total?: number;
   [key: string]: unknown;
 }
@@ -71,7 +74,33 @@ export interface QueueEntry {
   artist?: string;
   album?: string;
   subsonic_id?: string;
+  requestedBy?: string;
+  /** ISO timestamp present on history entries. */
+  t?: string;
   [key: string]: unknown;
+}
+
+/** Status returned by `/request/:id`. */
+export type RequestStatus = 'pending' | 'resolved' | 'failed' | 'unknown';
+
+export interface RequestTrack {
+  title?: string;
+  artist?: string;
+  album?: string;
+  subsonic_id?: string;
+}
+
+/** Result of a listener request — drives the RequestDrawer card. */
+export interface RequestResult {
+  success: boolean;
+  pending?: boolean;
+  ack?: string;
+  track?: RequestTrack;
+  queuePosition?: number;
+  requestId?: string;
+  requestText?: string;
+  message?: string;
+  status?: RequestStatus;
 }
 
 export interface DjLogEntry {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 
 const STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL || '/stream.mp3';
 
@@ -11,7 +11,7 @@ export interface Player {
   tunedIn: boolean;
   status: PlayerStatus;
   volume: number;
-  setVolume: (v: number) => void;
+  setVolume: Dispatch<SetStateAction<number>>;
   tune: () => void;
   stop: () => void;
   toggleMute: () => void;

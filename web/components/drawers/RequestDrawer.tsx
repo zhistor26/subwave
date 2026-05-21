@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/cn';
+import type { NowPlayingTrack, RequestResult, StationContext } from '@/lib/types';
 
 const SUCCESS_HOLD_MS = 2800;
 const POLL_INTERVAL_MS = 1500;
@@ -12,11 +14,16 @@ const POLL_DEADLINE_MS = 60000;
 // Instant, no-LLM acknowledgement shown the moment the booth accepts the
 // request — so there's zero dead time before the listener gets feedback. The
 // real on-air ack from the DJ replaces it once the pick resolves.
-function templatedAck(name) {
-  const n = (name || '').trim();
+function templatedAck(name: string): string {
+  const n = name.trim();
   return n
     ? `Got it, ${n} — taking it to the booth.`
     : `Got it — taking it to the booth.`;
+}
+
+interface Suggestion {
+  text: string;
+  attribution: string;
 }
 
 // Pull a handful of context-aware suggestion chips out of what's already
@@ -24,10 +31,13 @@ function templatedAck(name) {
 // it's being offered — "from track", "from time", etc. — instead of a flat
 // list of canned moods. Order: most-specific (current track) first, weakest
 // (random) last. Capped at 5 so the drawer doesn't sprawl.
-function buildSuggestions(nowPlaying, context) {
-  const seen = new Set();
-  const out = [];
-  const push = (text, attribution) => {
+function buildSuggestions(
+  nowPlaying: NowPlayingTrack | null,
+  context: StationContext | null,
+): Suggestion[] {
+  const seen = new Set<string>();
+  const out: Suggestion[] = [];
+  const push = (text: string, attribution: string) => {
     const key = text.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
@@ -52,7 +62,7 @@ function buildSuggestions(nowPlaying, context) {
   }
 
   const cond = context?.weather?.condition;
-  const weatherMap = {
+  const weatherMap: Record<string, string> = {
     clear: 'sunny afternoon',
     sunny: 'sunny afternoon',
     cloudy: 'overcast mood',
@@ -75,19 +85,32 @@ function buildSuggestions(nowPlaying, context) {
   return out.slice(0, 5);
 }
 
+export interface RequestDrawerProps {
+  requestText: string;
+  setRequestText: (text: string) => void;
+  requesterName: string;
+  setRequesterName: (name: string) => void;
+  isSubmitting: boolean;
+  onSubmit: () => Promise<RequestResult | null>;
+  onPoll?: (requestId: string) => Promise<RequestResult | null>;
+  onClose?: () => void;
+  nowPlaying: NowPlayingTrack | null;
+  context: StationContext | null;
+}
+
 export default function RequestDrawer({
   requestText, setRequestText,
   requesterName, setRequesterName,
   isSubmitting, onSubmit, onPoll, onClose,
   nowPlaying, context,
-}) {
-  const taRef = useRef(null);
+}: RequestDrawerProps) {
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
   // `result` drives the render: { success, pending, ack, track, message }.
   // Null while idle. On accept it's a `pending` success card showing the
   // instant templated ack; polling fills in the real track + on-air ack.
-  const [result, setResult] = useState(null);
-  const closeTimerRef = useRef(null);
-  const pollTimerRef = useRef(null);
+  const [result, setResult] = useState<RequestResult | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStopRef = useRef(false);
 
   useEffect(() => () => {
@@ -110,7 +133,7 @@ export default function RequestDrawer({
   // Poll the controller until the request resolves, fails, or the deadline
   // passes. While pending the templated ack card stays up; on resolve it
   // morphs into the real track + DJ ack, then auto-closes.
-  const startPolling = (requestId) => {
+  const startPolling = (requestId: string) => {
     pollStopRef.current = false;
     const deadline = Date.now() + POLL_DEADLINE_MS;
     const tick = async () => {
@@ -164,7 +187,7 @@ export default function RequestDrawer({
     }
   };
 
-  const onKeyDown = (e) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -177,7 +200,7 @@ export default function RequestDrawer({
 
   return (
     <div>
-      <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, marginTop: 0 }}>
+      <p className="mt-0 text-[13px] leading-normal text-muted">
         Describe a mood, a memory, an artist. Ollama parses it, matches the library,
         and the DJ acknowledges you on-air.
       </p>
@@ -208,17 +231,7 @@ export default function RequestDrawer({
       />
 
       {result && !result.success && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: '10px 12px',
-            border: '1px solid #c0392b',
-            background: 'rgba(192, 57, 43, 0.06)',
-            color: '#7a2218',
-            fontSize: 12,
-            lineHeight: 1.5,
-          }}
-        >
+        <div className="mt-2.5 border border-[#c0392b] bg-[rgba(192,57,43,0.06)] px-3 py-2.5 text-xs leading-normal text-[#7a2218]">
           {result.message || 'No match — try different words.'}
         </div>
       )}
@@ -235,96 +248,45 @@ export default function RequestDrawer({
   );
 }
 
-function SuccessCard({ result }) {
+interface SuccessCardProps {
+  result: RequestResult;
+}
+
+function SuccessCard({ result }: SuccessCardProps) {
   const { ack, track, queuePosition, pending, requestText } = result;
   return (
-    <div
-      style={{
-        padding: '8px 0',
-        animation: 'sw-success-in 240ms ease-out both',
-      }}
-    >
-      <style>{`
-        @keyframes sw-success-in {
-          from { opacity: 0; transform: translateY(6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes sw-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
-      `}</style>
-
-      <div
-        style={{
-          fontSize: 9,
-          letterSpacing: '0.4em',
-          textTransform: 'uppercase',
-          color: 'var(--accent)',
-          marginBottom: 14,
-        }}
-      >
+    <div className="sw-success-in py-2">
+      <div className="mb-[14px] text-[9px] tracking-[0.4em] text-vermilion uppercase">
         {pending ? '✓ Sent to the booth' : '✓ Queued'}
       </div>
 
       {ack && (
-        <div
-          style={{
-            fontSize: 18,
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontStyle: 'italic',
-            color: 'var(--ink)',
-            lineHeight: 1.3,
-            borderLeft: '2px solid var(--accent)',
-            paddingLeft: 14,
-            marginBottom: 22,
-          }}
-        >
-          “{ack}”
+        <div className="mb-[22px] border-l-2 border-l-vermilion pl-[14px] [font-family:Georgia,'Times_New_Roman',serif] text-lg leading-snug text-ink italic">
+          "{ack}"
         </div>
       )}
 
-      <div
-        style={{
-          padding: '16px 0',
-          borderTop: '1px solid var(--soft-border)',
-          borderBottom: '1px solid var(--soft-border)',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 9,
-            letterSpacing: '0.3em',
-            textTransform: 'uppercase',
-            color: 'var(--muted)',
-            marginBottom: 6,
-          }}
-        >
+      <div className="border-y border-soft-border py-4">
+        <div className="mb-1.5 text-[9px] tracking-[0.3em] text-muted uppercase">
           {pending ? 'The DJ is digging' : 'Now in the booth'}
         </div>
         {pending ? (
           <>
-            <div
-              style={{
-                fontSize: 16,
-                fontStyle: 'italic',
-                fontFamily: 'Georgia, "Times New Roman", serif',
-                color: 'var(--ink)',
-                lineHeight: 1.3,
-                animation: 'sw-pulse 1.4s ease-in-out infinite',
-              }}
-            >
+            <div className="sw-pulse [font-family:Georgia,'Times_New_Roman',serif] text-base leading-snug text-ink italic">
               finding your track…
             </div>
             {requestText && (
-              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                “{requestText}”
+              <div className="mt-1 text-[13px] text-muted">
+                "{requestText}"
               </div>
             )}
           </>
         ) : (
           <>
-            <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)' }}>
+            <div className="text-[22px] leading-tight font-semibold text-ink">
               {track?.title}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+            <div className="mt-0.5 text-[13px] text-muted">
               {track?.artist}
             </div>
           </>
@@ -332,40 +294,29 @@ function SuccessCard({ result }) {
       </div>
 
       {!pending && typeof queuePosition === 'number' && queuePosition > 0 && (
-        <div
-          className="v3-tab-num"
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            marginTop: 14,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-          }}
-        >
+        <div className="v3-tab-num mt-[14px] text-[11px] tracking-[0.15em] text-muted uppercase">
           Position #{queuePosition} in queue
         </div>
       )}
 
-      <div
-        style={{
-          marginTop: 26,
-          fontSize: 10,
-          letterSpacing: '0.3em',
-          textTransform: 'uppercase',
-          color: 'var(--muted)',
-        }}
-      >
+      <div className="mt-[26px] text-[10px] tracking-[0.3em] text-muted uppercase">
         {pending ? 'You can close this — your request is locked in' : 'Closing…'}
       </div>
     </div>
   );
 }
 
+interface SuggestionChipsProps {
+  nowPlaying: NowPlayingTrack | null;
+  context: StationContext | null;
+  onPick: (text: string) => void;
+}
+
 // Context-aware chip row. Each chip is a two-line button: the prompt text on
 // top, a small attribution caption underneath ("more <artist>", "weather",
 // "festival", "right now", "random"). Listeners see *why* a suggestion is
 // being offered instead of a flat canned list.
-function SuggestionChips({ nowPlaying, context, onPick }) {
+function SuggestionChips({ nowPlaying, context, onPick }: SuggestionChipsProps) {
   // Listing only the fields buildSuggestions actually reads — depending on the
   // whole nowPlaying/context objects would recompute on every poll cycle.
   const chips = useMemo(
@@ -376,36 +327,18 @@ function SuggestionChips({ nowPlaying, context, onPick }) {
   );
 
   return (
-    <div className="flex flex-wrap" style={{ gap: 6, margin: '18px 0' }}>
+    <div className={cn('my-[18px] flex flex-wrap gap-1.5')}>
       {chips.map(chip => (
         <button
           key={chip.text}
           onClick={() => onPick(chip.text)}
-          className="cursor-pointer v3-focus"
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--ink)',
-            color: 'var(--ink)',
-            padding: '6px 12px',
-            fontFamily: 'inherit',
-            textAlign: 'left',
-            lineHeight: 1.15,
-          }}
+          className="v3-focus cursor-pointer border border-ink bg-transparent px-3 py-1.5 text-left font-[inherit] leading-tight text-ink"
           title={`Suggested via ${chip.attribution}`}
         >
-          <span style={{ display: 'block', fontSize: 11, letterSpacing: '0.08em' }}>
+          <span className="block text-[11px] tracking-[0.08em]">
             {chip.text}
           </span>
-          <span
-            style={{
-              display: 'block',
-              fontSize: 8,
-              letterSpacing: '0.22em',
-              textTransform: 'uppercase',
-              color: 'var(--muted)',
-              marginTop: 3,
-            }}
-          >
+          <span className="mt-[3px] block text-[8px] tracking-[0.22em] text-muted uppercase">
             {chip.attribution}
           </span>
         </button>

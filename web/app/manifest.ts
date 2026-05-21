@@ -1,7 +1,9 @@
+import type { MetadataRoute } from 'next';
+
 // Served by Next at /manifest.webmanifest. Same-origin so it works behind
 // Caddy/Cloudflare without any extra route plumbing.
 
-export default function manifest() {
+export default function manifest(): MetadataRoute.Manifest {
   return {
     // Stable identity for the installed app. Pinned so changing start_url
     // later doesn't make the browser treat it as a different PWA and ship a

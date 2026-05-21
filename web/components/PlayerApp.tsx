@@ -9,28 +9,34 @@ import Waveform from './Waveform';
 import TransportBar from './TransportBar';
 import TuneInOverlay from './TuneInOverlay';
 import DotRail from './DotRail';
-import CommandPalette from './CommandPalette';
+import CommandPalette, { type PlayerDrawer } from './CommandPalette';
 import ShortcutsDialog from './ShortcutsDialog';
 import { Sheet } from './ui/sheet';
 import { Toaster } from './ui/toaster';
 import TimelineDrawer from './drawers/TimelineDrawer';
 import BoothDrawer from './drawers/BoothDrawer';
 import RequestDrawer from './drawers/RequestDrawer';
-import { useStationFeed } from '../hooks/useStationFeed';
-import { usePlayer } from '../hooks/usePlayer';
-import { useMediaSession } from '../hooks/useMediaSession';
-import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { getStoredTheme, setTheme as persistTheme } from '../lib/theme';
+import { useStationFeed } from '@/hooks/useStationFeed';
+import { usePlayer } from '@/hooks/usePlayer';
+import { useMediaSession } from '@/hooks/useMediaSession';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { getStoredTheme, setTheme as persistTheme } from '@/lib/theme';
+import { cn } from '@/lib/cn';
+import type { RequestResult } from '@/lib/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
-const DRAWER_TITLES = {
+const DRAWER_TITLES: Record<PlayerDrawer, string> = {
   timeline: 'Timeline',
   booth: 'Booth feed',
   request: 'Make a request',
 };
 
-export default function PlayerApp({ contained = false }) {
+export interface PlayerAppProps {
+  contained?: boolean;
+}
+
+export default function PlayerApp({ contained = false }: PlayerAppProps) {
   const { nowPlaying, context, dj, activeShow, listeners, streamOnline, state, session, elapsed, progress } = useStationFeed();
   const boothFeed = session.messages;
   const { audioRef, tunedIn, status, volume, setVolume, tune, stop, toggleMute, muted } = usePlayer();
@@ -50,17 +56,17 @@ export default function PlayerApp({ contained = false }) {
   // skip the song for every other listener on the station.
   useMediaSession({ tunedIn, nowPlaying, audioRef, onTune: tune });
 
-  const rootRef = useRef(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   // Drawers/dialogs portal here when contained so they stay inside the frame.
-  const [portalNode, setPortalNode] = useState(null);
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   useEffect(() => { if (contained) setPortalNode(rootRef.current); }, [contained]);
 
   const [requestText, setRequestText] = useState('');
   const [requesterName, setRequesterName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [drawer, setDrawer] = useState(null);
+  const [drawer, setDrawer] = useState<PlayerDrawer | null>(null);
   const [tickerOn, setTickerOn] = useState(true);
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
@@ -108,7 +114,7 @@ export default function PlayerApp({ contained = false }) {
     if (showTuneIn) tuneInFromOverlay();
     else tune();
   };
-  const adjustVolume = (delta) =>
+  const adjustVolume = (delta: number) =>
     setVolume(v => Math.min(1, Math.max(0, Math.round((v + delta) * 100) / 100)));
 
   // Global keyboard shortcuts. Bare keys are suppressed while a text field
@@ -134,7 +140,7 @@ export default function PlayerApp({ contained = false }) {
   // Submit a request. The controller accepts in ~50ms and returns a request
   // id; the actual matching runs in the booth. The drawer then polls
   // pollRequest() for the outcome.
-  const submitRequest = async () => {
+  const submitRequest = async (): Promise<RequestResult | null> => {
     if (!requestText.trim() || isSubmitting) return null;
     setIsSubmitting(true);
     try {
@@ -143,7 +149,7 @@ export default function PlayerApp({ contained = false }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: requestText.trim(), name: requesterName.trim() }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as RequestResult;
       if (data.success) setRequestText('');
       return data;
     } catch {
@@ -156,11 +162,11 @@ export default function PlayerApp({ contained = false }) {
 
   // Poll a submitted request for its outcome. Returns the controller's
   // status payload, or null on a network error so the drawer keeps trying.
-  const pollRequest = async (requestId) => {
+  const pollRequest = async (requestId: string): Promise<RequestResult | null> => {
     try {
       const res = await fetch(`${API_URL}/request/${requestId}`);
-      if (res.status === 404) return { status: 'unknown' };
-      return await res.json();
+      if (res.status === 404) return { success: false, status: 'unknown' };
+      return (await res.json()) as RequestResult;
     } catch {
       return null;
     }
@@ -169,15 +175,14 @@ export default function PlayerApp({ contained = false }) {
   return (
     <div
       ref={rootRef}
-      className={`${contained ? 'absolute' : 'fixed'} inset-0 overflow-hidden`}
-      style={{ background: 'var(--bg)', color: 'var(--ink)' }}
+      className={cn(contained ? 'absolute' : 'fixed', 'inset-0 overflow-hidden bg-bg text-ink')}
     >
       <audio ref={audioRef} crossOrigin="anonymous" preload="auto" />
 
       <TopBar
         tunedIn={tunedIn}
         context={context}
-        djName={dj?.name}
+        djName={typeof dj?.name === 'string' ? dj.name : undefined}
         activeShow={activeShow}
         listeners={listeners}
         theme={theme}
@@ -219,7 +224,7 @@ export default function PlayerApp({ contained = false }) {
 
       <Sheet
         open={drawer != null}
-        onOpenChange={(v) => { if (!v) setDrawer(null); }}
+        onOpenChange={(v: boolean) => { if (!v) setDrawer(null); }}
         title={drawer ? DRAWER_TITLES[drawer] : ''}
         container={portalNode}
       >

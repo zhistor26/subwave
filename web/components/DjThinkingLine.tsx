@@ -1,45 +1,53 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { turnClass, turnText } from "../lib/sessionFeed";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { turnClass, turnText, type TurnDisplayClass } from '@/lib/sessionFeed';
+import type { SessionTurn } from '@/lib/types';
 
 // Shows only the DJ's "thinking" — the latest thing said on-air ("voice") or
 // the latest pick/request reasoning ("dj"). Aired tracks and system turns
 // stay out. Renders under the track info as a small typed line; tapping it
 // opens the Booth drawer with the full transcript.
-const THINKING_CLASSES = new Set(["voice", "dj"]);
+const THINKING_CLASSES = new Set<TurnDisplayClass>(['voice', 'dj']);
 
-const MARKER = { voice: "♪", dj: "◇" };
+const MARKER: Record<string, string> = { voice: '♪', dj: '◇' };
 
-function thinkingText(turn) {
+function thinkingText(turn: SessionTurn): string {
   const cls = turnClass(turn);
   const text = turnText(turn);
-  return cls === "voice" ? `“${text}”` : text;
+  return cls === 'voice' ? `"${text}"` : text;
+}
+
+export interface DjThinkingLineProps {
+  /** Live session messages, oldest first. */
+  feed: SessionTurn[] | undefined;
+  enabled: boolean;
+  onOpenBooth?: () => void;
 }
 
 // `feed` is the live session's `messages` array — turns of
 // { t, role, kind, text, meta }, oldest first.
-export default function DjThinkingLine({ feed, enabled, onOpenBooth }) {
+export default function DjThinkingLine({ feed, enabled, onOpenBooth }: DjThinkingLineProps) {
   // The newest voice/dj turn — what the DJ is currently "thinking".
-  const latest = useMemo(() => {
+  const latest = useMemo<SessionTurn | null>(() => {
     if (!feed?.length) return null;
     for (let i = feed.length - 1; i >= 0; i--) {
       const turn = feed[i];
-      if (THINKING_CLASSES.has(turnClass(turn)) && turn.text) return turn;
+      if (turn && THINKING_CLASSES.has(turnClass(turn)) && turn.text) return turn;
     }
     return null;
   }, [feed]);
 
-  const full = latest ? thinkingText(latest) : "";
+  const full = latest ? thinkingText(latest) : '';
 
   // Typewriter: re-type from scratch whenever the latest turn changes.
-  const [shown, setShown] = useState("");
-  const turnId = latest ? `${latest.t}` : "";
-  const lastId = useRef(null);
+  const [shown, setShown] = useState('');
+  const turnId = latest ? `${latest.t}` : '';
+  const lastId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!full) {
-      setShown("");
+      setShown('');
       lastId.current = turnId;
       return;
     }
@@ -49,7 +57,7 @@ export default function DjThinkingLine({ feed, enabled, onOpenBooth }) {
       return;
     }
     lastId.current = turnId;
-    setShown("");
+    setShown('');
     let i = 0;
     const id = setInterval(() => {
       i += 1;
@@ -70,30 +78,20 @@ export default function DjThinkingLine({ feed, enabled, onOpenBooth }) {
       tabIndex={0}
       onClick={open}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           open();
         }
       }}
       title="Open booth feed"
-      className="v3-focus mt-[22px] mb-[10px] flex w-full max-w-[78%] cursor-pointer items-baseline gap-2 font-mono"
-      style={{ fontSize: 12, lineHeight: 1.55, color: "var(--muted)" }}
+      className="v3-focus mt-[22px] mb-[10px] flex w-full max-w-[78%] cursor-pointer items-baseline gap-2 font-mono text-[12px] leading-[1.55] text-muted"
     >
-      <span style={{ opacity: 0.7 }} aria-hidden="true">
-        {MARKER[cls] || "·"}
+      <span className="opacity-70" aria-hidden="true">
+        {MARKER[cls] || '·'}
       </span>
-      <span
-        style={{
-          overflowWrap: "anywhere",
-        }}
-      >
+      <span className="[overflow-wrap:anywhere]">
         {shown}
-        <span
-          className="v3-blink"
-          style={{ marginLeft: 1, color: "var(--accent)" }}
-        >
-          ▍
-        </span>
+        <span className="v3-blink ml-px text-vermilion">▍</span>
       </span>
     </div>
   );

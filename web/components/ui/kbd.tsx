@@ -1,25 +1,23 @@
 'use client';
 
-import { cn } from '../../lib/cn';
+import type { HTMLAttributes, ReactNode } from 'react';
+import { cn } from '@/lib/cn';
+
+export interface KbdProps extends HTMLAttributes<HTMLElement> {
+  children?: ReactNode;
+}
 
 /* Small newsprint key-cap badge for rendering shortcut hints. Pure CSS — no
    dependency. Used by the command palette and the shortcuts help dialog. */
-export function Kbd({ children, className }) {
+export function Kbd({ children, className, ...rest }: KbdProps) {
   return (
     <kbd
       className={cn(
         'inline-flex items-center justify-center font-mono leading-none select-none',
+        'h-5 min-w-5 border border-soft-border bg-transparent px-1.5 text-[11px] text-muted',
         className,
       )}
-      style={{
-        minWidth: 20,
-        height: 20,
-        padding: '0 6px',
-        fontSize: 11,
-        border: '1px solid var(--soft-border)',
-        color: 'var(--muted)',
-        background: 'transparent',
-      }}
+      {...rest}
     >
       {children}
     </kbd>

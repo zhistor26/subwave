@@ -1,8 +1,10 @@
 import './globals.css';
+import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
 import { JetBrains_Mono } from 'next/font/google';
-import { THEME_INIT_SCRIPT } from '../lib/theme';
-import { SITE_URL } from '../lib/site';
-import ServiceWorkerRegister from '../components/ServiceWorkerRegister';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import { SITE_URL } from '@/lib/site';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin', 'latin-ext'],
@@ -24,7 +26,7 @@ const OG_IMAGE_ALT = 'SUB/WAVE — a real internet radio station';
 // localhost origin. Hand-written <meta> tags are emitted verbatim, so the
 // absolute SITE_URL survives. The Metadata API still owns everything that
 // isn't a URL — title, descriptions, icons, PWA metas.
-export const metadata = {
+export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'SUB/WAVE', template: '%s · SUB/WAVE' },
   description: DESCRIPTION,
@@ -50,7 +52,7 @@ export const metadata = {
   },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f3efe6' },
     { media: '(prefers-color-scheme: dark)',  color: '#100e0c' },
@@ -61,7 +63,7 @@ export const viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <head>

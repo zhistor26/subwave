@@ -55,7 +55,7 @@ export default defineConfig([
           // defined in app/globals.css that haven't been promoted to
           // @theme/@layer yet. The Track-2 migration deletes them; until
           // then, ignored so file renames don't trip on legacy CSS.
-          ignore: ['^v3-', '^bs-', '^broadsheet-', '^admin-'],
+          ignore: ['^v3-', '^bs-', '^broadsheet-', '^admin-', '^sw-', '^player-'],
         },
       ],
       'better-tailwindcss/enforce-consistent-class-order': 'error',

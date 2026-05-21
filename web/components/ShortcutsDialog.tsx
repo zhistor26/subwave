@@ -1,10 +1,15 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { cn } from '../lib/cn';
+import { cn } from '@/lib/cn';
 import { Kbd } from './ui/kbd';
 
-const SHORTCUTS = [
+interface Shortcut {
+  keys: string[];
+  label: string;
+}
+
+const SHORTCUTS: readonly Shortcut[] = [
   { keys: ['Space', 'K'], label: 'Tune in / out' },
   { keys: ['↑'], label: 'Volume up' },
   { keys: ['↓'], label: 'Volume down' },
@@ -18,58 +23,51 @@ const SHORTCUTS = [
   { keys: ['Esc'], label: 'Close drawer / dialog' },
 ];
 
+export interface ShortcutsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  container?: HTMLElement | null;
+}
+
 /* Help dialog listing every player keyboard shortcut. Centered newsprint
    modal — accepts `container` so it stays inside the frame in contained
    mode, matching FullDialog / Modal. */
-export default function ShortcutsDialog({ open, onOpenChange, container }) {
+export default function ShortcutsDialog({ open, onOpenChange, container }: ShortcutsDialogProps) {
   const contained = !!container;
   const pos = contained ? 'absolute' : 'fixed';
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal container={container}>
         <Dialog.Overlay
-          className={cn('v3-drawer-overlay inset-0 z-40', pos)}
-          style={{ background: 'var(--overlay)' }}
+          className={cn('v3-drawer-overlay inset-0 z-40 bg-overlay', pos)}
         />
         <Dialog.Content
           aria-describedby={undefined}
-          className={cn('v3-modal-pop z-50 left-1/2 top-1/2 outline-none flex flex-col', pos)}
-          style={{
-            transform: 'translate(-50%, -50%)',
-            width: 'min(420px, calc(100vw - 2rem))',
-            maxHeight: 'calc(100vh - 3rem)',
-            background: 'var(--bg)',
-            color: 'var(--ink)',
-            border: '1px solid var(--ink)',
-            boxShadow: 'var(--drawer-shadow)',
-          }}
+          className={cn(
+            'v3-modal-pop top-1/2 left-1/2 z-50 flex flex-col border border-ink bg-bg text-ink shadow-drawer outline-none',
+            '-translate-x-1/2 -translate-y-1/2',
+            'max-h-[calc(100vh-3rem)] w-[min(420px,calc(100vw-2rem))]',
+            pos,
+          )}
         >
-          <div
-            className="flex items-baseline justify-between gap-3 px-6 py-4"
-            style={{ borderBottom: '1px solid var(--ink)' }}
-          >
-            <Dialog.Title
-              className="v3-eyebrow m-0"
-              style={{ fontSize: 13, letterSpacing: '0.3em' }}
-            >
+          <div className="flex items-baseline justify-between gap-3 border-b border-ink px-6 py-4">
+            <Dialog.Title className="v3-eyebrow m-0 text-[13px] tracking-[0.3em]">
               Keyboard shortcuts
             </Dialog.Title>
             <Dialog.Close
-              className="cursor-pointer text-xl leading-none v3-focus"
+              className="v3-focus cursor-pointer border-0 bg-transparent text-xl leading-none text-muted"
               aria-label="Close"
-              style={{ background: 'transparent', border: 'none', color: 'var(--muted)' }}
             >
               ×
             </Dialog.Close>
           </div>
 
-          <div className="flex-1 overflow-auto v3-scroll px-6 py-3">
+          <div className="v3-scroll flex-1 overflow-auto px-6 py-3">
             <ul className="flex flex-col">
               {SHORTCUTS.map((s) => (
                 <li
                   key={s.label}
-                  className="flex items-center justify-between gap-4 py-2.5"
-                  style={{ borderBottom: '1px dashed var(--separator-soft)' }}
+                  className="flex items-center justify-between gap-4 border-b border-dashed border-separator-soft py-2.5"
                 >
                   <span className="text-sm">{s.label}</span>
                   <span className="flex items-center gap-1">

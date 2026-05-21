@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 // Registers /sw.js once on mount. Kept separate from PlayerApp so it also
 // runs on the landing/admin/setup routes — the install prompt should work
 // no matter which page the visitor lands on first.
-export default function ServiceWorkerRegister() {
+export default function ServiceWorkerRegister(): null {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
