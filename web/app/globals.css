@@ -1,6 +1,67 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Manual dark-mode override — listener can pin light/dark via [data-theme=…];
+   absent or "system" lets the @media block in :root drive it. The variant
+   target mirrors shadcn/ui v4's recipe so `dark:` utilities still resolve. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Theme tokens — bridge every :root CSS variable into Tailwind's v4 namespaces
+   so utilities (bg-bg, text-ink, border-separator-soft, shadow-drawer, …)
+   resolve to the same vars the rest of the stylesheet reads. The actual color
+   values live in :root below, so light/dark flips driven by data-theme or
+   prefers-color-scheme reach Tailwind utilities for free. */
+@theme {
+  /* Newsprint palette */
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-vermilion: var(--accent); /* raw hot-vermilion ink, kept off the shadcn `accent` slot */
+  --color-overlay: var(--overlay);
+  --color-soft-border: var(--soft-border);
+  --color-separator-soft: var(--separator-soft);
+  --color-separator-strong: var(--separator-strong);
+  --color-scrollbar: var(--scrollbar);
+  --color-scrollbar-hover: var(--scrollbar-hover);
+  --color-field: var(--field);
+
+  /* shadcn/ui semantic bridge — `accent` here is the muted hover overlay
+     shadcn expects (Button hover, Toggle on-state), not the raw vermilion.
+     Light/dark flips reach these via :root redeclarations below. */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent-color);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Brutalist sharp-corner radius (pinned to 0). */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+
+  /* Drawer / dialog shadow used by the right-side drawer + modal-pop. */
+  --shadow-drawer: var(--drawer-shadow);
+
+  /* Recurring eyebrow letterspacing — used everywhere caps headers appear. */
+  --tracking-eyebrow: 0.2em;
+
+  /* Mono font — set in body inline; promoted so `font-mono` works. */
+  --font-mono: var(--font-mono);
+}
 
 /* V3 / Frequency — newsprint cream, near-black ink, hot vermilion.
    Dark mode flips bg/ink to a warm deep-charcoal + off-white pairing and

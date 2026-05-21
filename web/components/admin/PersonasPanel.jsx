@@ -44,7 +44,7 @@ function clientMintId() {
   return 'p_' + [...b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-function personaValid(p, defaultEngine) {
+function personaValid(p, _defaultEngine) {
   if (p.name.trim().length < 1 || p.name.trim().length > NAME_MAX) return false;
   if (p.tagline.trim().length > TAGLINE_MAX) return false;
   if (p.soul.trim().length < 1 || p.soul.trim().length > SOUL_MAX) return false;
@@ -229,7 +229,6 @@ export default function PersonasPanel() {
   const safeIdx = Math.min(focusIdx, form.personas.length - 1);
   const focused = form.personas[safeIdx];
   const activePersona = form.personas.find(p => p.id === form.activePersonaId);
-  const focusedFreq = FREQUENCIES.find(f => f.id === focused.frequency);
   const focusedSoulLen = focused.soul.trim().length;
   const focusedSoulOver = focusedSoulLen > SOUL_MAX;
   const focusedOk = personaValid(focused);

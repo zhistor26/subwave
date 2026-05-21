@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import ManualPage from './ManualPage';
 
 export default function Requests() {
