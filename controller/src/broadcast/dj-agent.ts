@@ -98,7 +98,12 @@ async function pickViaAgent(queue, { wantLink }) {
     messages: session.windowMessages(),
     tools,
     schema: PICK_SCHEMA,
-    maxSteps: 6,
+    // On the Ollama done-tool path the loop ends at step 1 (COMMIT_AFTER_STEPS
+    // in sdk.js); maxSteps is the backstop and the budget for the non-Ollama
+    // native path. timeoutMs is a hard ceiling so a slow/flaky-cloud run fails
+    // fast into the pool-picker fallback below instead of dragging on.
+    maxSteps: 4,
+    timeoutMs: 22000,
     kind: 'djAgentPick',
   });
 
@@ -202,7 +207,10 @@ export async function runRequest(queue: any, ctx: any, { requester, text: _text 
       messages: session.windowMessages(),
       tools,
       schema: REQUEST_SCHEMA,
-      maxSteps: 6,
+      // See pickViaAgent above — maxSteps is the backstop, timeoutMs the hard
+      // ceiling that fails fast into the stateless matcher fallback.
+      maxSteps: 4,
+      timeoutMs: 22000,
       kind: 'djAgentRequest',
     });
 

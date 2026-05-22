@@ -133,6 +133,11 @@ function buildMessagesLong() {
   ];
 }
 
+// maxSteps / timeoutMs default to the live picker call site; override for
+// tuning runs with argv[6] / argv[7].
+const TEST_MAX_STEPS = parseInt(process.argv[6] || '4', 10);
+const TEST_TIMEOUT_MS = parseInt(process.argv[7] || '22000', 10);
+
 async function runOnce(label, messagesMode) {
   const { tools, seen } = buildSyntheticTools();
   const messages = messagesMode === 'long' ? buildMessagesLong() : buildMessagesShort();
@@ -144,7 +149,10 @@ async function runOnce(label, messagesMode) {
       messages,
       tools,
       schema: PICK_SCHEMA,
-      maxSteps: 6,
+      // Mirror the live picker call site (dj-agent.js pickViaAgent).
+      // maxSteps/timeoutMs overridable via argv for tuning runs.
+      maxSteps: TEST_MAX_STEPS,
+      timeoutMs: TEST_TIMEOUT_MS,
       kind: 'pickerTest',
     });
     outcome.ms = Date.now() - started;

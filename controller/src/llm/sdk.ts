@@ -7,7 +7,7 @@
 // Both resolve their model through llm/provider.js, so switching providers in
 // Settings reroutes every call with no change here or at the call sites.
 
-import { generateText, Output, stepCountIs, ToolLoopAgent, tool } from 'ai';
+import { generateText, Output, stepCountIs, hasToolCall, ToolLoopAgent, tool } from 'ai';
 import { languageModel, activeModelLabel, providerName } from './provider.js';
 import { record } from './log.js';
 import * as settings from '../settings.js';
@@ -28,6 +28,27 @@ import * as settings from '../settings.js';
 const MAX_TOKENS_TEXT   = 4000;
 const MAX_TOKENS_OBJECT = 8000;
 const MAX_TOKENS_AGENT  = 8000;
+
+// djAgent done-tool path: prepareStep pins activeTools so EVERY step is a
+// cornered single-purpose request — step 0 = discovery only, step >=
+// COMMIT_AFTER_STEPS = `done` only. Both forms restrict activeTools at the
+// request level, the only lever cloud Ollama models actually honour (they
+// ignore a plain `toolChoice:'required'` when several tools are visible and
+// just emit prose — which ends the loop with no `done` call: the "agent did
+// not call the done tool" failure).
+//
+// COMMIT_AFTER_STEPS = 1 leaves NO free middle step, so that failure window is
+// closed: the model gets exactly one discovery call, then must emit `done`.
+// One targeted, session-aware discovery call (e.g. similarSongs on the current
+// track) still yields ~8 candidates — plenty for a pick, and smarter than the
+// stateless pool fallback. Raising this re-opens the middle-step failure
+// window on cloud Ollama; don't, unless the provider honours `toolChoice`.
+//
+// This is independent of djAgent's `maxSteps`: on the done-tool path the loop
+// ends when `done` is called (step 1), well before `maxSteps`; `maxSteps` is
+// just the backstop here and the real step budget for the non-Ollama native
+// Output.object path.
+const COMMIT_AFTER_STEPS = 1;
 
 // Some models (Qwen 3, DeepSeek R1, etc.) emit a <think>…</think> reasoning
 // block before the answer. Reasoning is suppressed at the provider layer when
@@ -411,6 +432,7 @@ export async function djAgent({
   temperature = 0.6,
   maxOutputTokens = MAX_TOKENS_AGENT,
   kind = 'sdk.djAgent',
+  timeoutMs,
 }: any) {
   const started = Date.now();
   // Default to the agent path; the fast-path branch overrides before its await.
@@ -455,9 +477,19 @@ export async function djAgent({
     const useGatedDiscovery = useDoneTool && discoveryToolNames.length > 0;
     const prepareStep = useGatedDiscovery
       ? async ({ stepNumber }: { stepNumber: number }) => {
+          // Step 0: force a discovery tool — never `done`. Stops the model
+          // committing a hallucinated id before seeing any library results.
           if (stepNumber === 0) {
             return { activeTools: discoveryToolNames, toolChoice: 'required' };
           }
+          // Step >= COMMIT_AFTER_STEPS: force `done`. Cloud Ollama models
+          // honour activeTools at the request level — with only `done` active
+          // they cannot keep exploring and must emit their final answer. This
+          // is what guarantees a `done` call before the step cap is hit.
+          if (stepNumber >= COMMIT_AFTER_STEPS) {
+            return { activeTools: ['done'], toolChoice: 'required' };
+          }
+          // Middle steps: all tools active — explore more, or commit early.
           return {};
         }
       : undefined;
@@ -466,7 +498,10 @@ export async function djAgent({
       model: languageModel(),
       instructions: system,
       tools: allTools,
-      stopWhen: stepCountIs(maxSteps),
+      // The no-execute `done` tool already terminates the loop when called;
+      // hasToolCall('done') is belt-and-suspenders, and inert on the
+      // non-Ollama path where no `done` tool exists.
+      stopWhen: [stepCountIs(maxSteps), hasToolCall('done')],
       temperature,
       maxOutputTokens,
       providerOptions: providerOpts(),
@@ -476,7 +511,13 @@ export async function djAgent({
       // path: schema lives on the `done` tool, so no agent-level output.
       ...(schema && !useDoneTool ? { output: Output.object({ schema }) } : {}),
     } as any);
-    const result = await agent.generate({ messages });
+    // timeoutMs (when set by a caller) is a hard ceiling — a slow/looping run
+    // throws, flows through the catch below, and the caller falls back to its
+    // stateless path rather than blocking on a pathological model call.
+    const result = await agent.generate({
+      messages,
+      ...(timeoutMs ? { timeout: timeoutMs } : {}),
+    });
     const steps = result.steps?.length ?? 0;
 
     let object;

@@ -373,8 +373,13 @@ async function collectLlm(): Promise<LlmChoice> {
       validate: (v: string) => (!/^https?:\/\//.test(v) ? 'must start with http(s)://' : undefined),
     }), { backOnCancel: false });
     const model = exitIfCancelled(await p.text({
+      // glm-5.1:cloud is the recommended default — it calls tools reliably
+      // (~97% on the picker-test harness, ~2s/pick), which the DJ picker
+      // agent depends on. kimi-k2.6:cloud honours tool calls only ~50% of
+      // the time; avoid it for the picker.
       message: 'Ollama model (must be pulled on the server)',
-      placeholder: 'qwen3:8b',
+      initialValue: 'glm-5.1:cloud',
+      placeholder: 'glm-5.1:cloud',
       validate: (v: string) => (!v ? 'required' : undefined),
     }), { backOnCancel: false });
     await reportProbe('Ollama', () => probeOllama({ url, model }));
