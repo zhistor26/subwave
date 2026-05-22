@@ -37,6 +37,9 @@ const ENGINES = [
 // Chatterbox reference voice files are validated against this in audio/chatterbox.ts
 // — basename only, no path separators, .wav extension, conservative chars.
 const CHATTERBOX_VOICE_RE = /^[A-Za-z0-9_.-]{1,80}\.wav$/;
+// Sentinel for the empty-string "use the built-in voice" choice — Radix Select
+// rejects an empty-string SelectItem value.
+const CB_DEFAULT_VOICE = '__cb_default__';
 const NAME_MAX = 40;
 const TAGLINE_MAX = 80;
 const SOUL_MAX = 400;
@@ -668,13 +671,13 @@ export default function PersonasPanel() {
                   )}
                   <Label>Reference voice</Label>
                   <Select
-                    value={focused.tts.voice || ''}
-                    onValueChange={val => setPersonaTts(safeIdx, { voice: val })}
+                    value={focused.tts.voice || CB_DEFAULT_VOICE}
+                    onValueChange={val => setPersonaTts(safeIdx, { voice: val === CB_DEFAULT_VOICE ? '' : val })}
                   >
                     <SelectTrigger><SelectValue placeholder="Built-in default voice" /></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="">Built-in default voice</SelectItem>
+                        <SelectItem value={CB_DEFAULT_VOICE}>Built-in default voice</SelectItem>
                         {cbVoices.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                         {focused.tts.voice && !cbVoices.includes(focused.tts.voice) && (
                           <SelectItem value={focused.tts.voice}>{focused.tts.voice} (missing)</SelectItem>
