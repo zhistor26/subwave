@@ -55,12 +55,8 @@ class ChatterboxWorker {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        CHATTERBOX_BACKEND: config.chatterbox.backend,
         CHATTERBOX_DEVICE: config.chatterbox.device,
-        CHATTERBOX_MODEL_DIR: config.chatterbox.modelDir,
         CHATTERBOX_REFERENCE_WAV: config.chatterbox.referenceWav,
-        CHATTERBOX_EXAGGERATION: String(config.chatterbox.exaggeration),
-        CHATTERBOX_CFG_WEIGHT: String(config.chatterbox.cfgWeight),
       },
     });
 
@@ -182,8 +178,6 @@ export async function speak(
   const msg = await w.send(id, {
     text: text.trim(),
     reference_wav: resolveReferenceWav(voice),
-    exaggeration: config.chatterbox.exaggeration,
-    cfg_weight: config.chatterbox.cfgWeight,
     out: outPath,
   });
   return msg.path;

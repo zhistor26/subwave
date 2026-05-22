@@ -70,22 +70,14 @@ export const config = {
   chatterbox: {
     python: process.env.CHATTERBOX_PYTHON || '/opt/chatterbox/venv/bin/python',
     workerScript: process.env.CHATTERBOX_WORKER || '/app/scripts/chatterbox_worker.py',
-    // 'onnx' (default) or 'torch'. ONNX runtime has no PyTorch dep and is the
-    // expected install on CPU homelabs. 'torch' is required for CUDA.
-    backend: process.env.CHATTERBOX_BACKEND || 'onnx',
-    // 'cpu' or 'cuda'. Only consulted by the torch backend.
+    // 'cpu' or 'cuda'. CPU works but is slow; CUDA needs a GPU-enabled image.
     device: process.env.CHATTERBOX_DEVICE || 'cpu',
-    modelDir: process.env.CHATTERBOX_MODEL_DIR || '/opt/chatterbox/models',
     // Directory where the operator drops per-persona reference WAVs. Each
     // persona stores a filename (relative to here) in its `tts.voice` field.
     voiceDir: process.env.CHATTERBOX_VOICE_DIR || `${STATE_DIR}/chatterbox-voices`,
     // Global fallback reference WAV used when a persona has no voice set.
     // Empty → use Chatterbox's built-in default voice.
     referenceWav: process.env.CHATTERBOX_REFERENCE_WAV || '',
-    // Expressiveness knob. 0.5 is the model's default; higher = more dramatic.
-    exaggeration: parseFloat(process.env.CHATTERBOX_EXAGGERATION || '0.5'),
-    // CFG weight for the diffusion sampler. 0.5 is the default.
-    cfgWeight: parseFloat(process.env.CHATTERBOX_CFG_WEIGHT || '0.5'),
   },
   icecast: {
     // Public status JSON — listener counts + per-mount metadata. No auth.

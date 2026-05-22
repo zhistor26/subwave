@@ -45,23 +45,27 @@ ENV KOKORO_MODEL=/opt/kokoro/models/kokoro-v1.0.onnx \
 
 # --- Chatterbox (opt-in) --------------------------------------------------
 # Fourth TTS engine — Resemble AI's Chatterbox Turbo: zero-shot voice cloning
-# plus native paralinguistic tags ([laugh], [sigh], …). The model is ~1-2GB
-# and CPU inference is slow, so it is deliberately NOT in the default image.
-# Build with `--build-arg WITH_CHATTERBOX=1` to bundle the ONNX runtime +
-# weights into an isolated venv (same pattern as Kokoro above). When the venv
-# is absent, the controller's chatterbox.isAvailable() check (an existsSync on
-# this path) reports false and the dispatcher cleanly falls back to Piper.
+# plus native paralinguistic tags ([laugh], [sigh], …). Uses the official
+# `chatterbox-tts` PyPI package (PyTorch — there is no turn-key ONNX runtime).
+# The runtime + weights add ~2-3GB, and CPU inference is slow, so this is
+# deliberately NOT in the default image. Build with
+# `--build-arg WITH_CHATTERBOX=1` to bundle it into an isolated venv (same
+# pattern as Kokoro above). The final `from_pretrained` doubles as a build-time
+# smoke test (it fails the build if the install is broken) and pre-warms the
+# Hugging Face cache so the first DJ line doesn't trigger a multi-GB download.
+# When the venv is absent, chatterbox.isAvailable() (an existsSync on the venv
+# interpreter) reports false and the dispatcher falls back to Piper.
 # CHATTERBOX_PIP_PKG is overridable in case the package is renamed upstream.
+ENV HF_HOME=/opt/chatterbox/hf-cache
 ARG WITH_CHATTERBOX=0
-ARG CHATTERBOX_PIP_PKG=chatterbox-onnx
+ARG CHATTERBOX_PIP_PKG=chatterbox-tts
 RUN if [ "$WITH_CHATTERBOX" = "1" ]; then \
-      echo "Bundling Chatterbox (ONNX) — this adds ~1-2GB to the image" && \
+      echo "Bundling Chatterbox Turbo (PyTorch) — this adds ~2-3GB to the image" && \
       python3 -m venv /opt/chatterbox/venv && \
       /opt/chatterbox/venv/bin/pip install --no-cache-dir --upgrade pip && \
-      /opt/chatterbox/venv/bin/pip install --no-cache-dir \
-        onnxruntime soundfile numpy huggingface_hub "${CHATTERBOX_PIP_PKG}" && \
+      /opt/chatterbox/venv/bin/pip install --no-cache-dir "${CHATTERBOX_PIP_PKG}" torchaudio && \
       /opt/chatterbox/venv/bin/python -c \
-        "from huggingface_hub import snapshot_download; snapshot_download(repo_id='ResembleAI/chatterbox-turbo-ONNX', local_dir='/opt/chatterbox/models')" ; \
+        "from chatterbox.tts_turbo import ChatterboxTurboTTS; ChatterboxTurboTTS.from_pretrained(device='cpu')" ; \
     else \
       echo "Chatterbox not bundled — build with --build-arg WITH_CHATTERBOX=1 to include it" ; \
     fi
