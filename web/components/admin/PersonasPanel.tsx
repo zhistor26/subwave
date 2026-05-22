@@ -612,14 +612,23 @@ export default function PersonasPanel() {
                 value={focused.tts.engine}
                 options={ENGINES}
                 onChange={v => {
-                  // Switching into cloud, seed a valid default voice if the
-                  // current one isn't a known voice for the active provider.
+                  // The `voice` field is shared across engines but each engine
+                  // validates it differently — a leftover value from the old
+                  // engine (e.g. a Kokoro id like "bm_george") fails the new
+                  // engine's check on save. Normalize voice to something the
+                  // target engine accepts whenever the engine changes.
                   const patch: Partial<PersonaTts> = { engine: v };
+                  const cur = focused.tts.voice.trim();
                   if (v === 'cloud') {
                     const provVoices = CLOUD_VOICES[focused.tts.cloudProvider as keyof typeof CLOUD_VOICES] || [];
-                    if (!provVoices.some(pv => pv.id === focused.tts.voice.trim())) {
-                      patch.voice = provVoices[0]?.id || focused.tts.voice;
+                    if (!provVoices.some(pv => pv.id === cur)) {
+                      patch.voice = provVoices[0]?.id || cur;
                     }
+                  } else if (v === 'kokoro') {
+                    if (!KOKORO_RE.test(cur)) patch.voice = 'bf_isabella';
+                  } else if (v === 'chatterbox') {
+                    // Empty = built-in voice; a real value must be a .wav filename.
+                    if (cur && !CHATTERBOX_VOICE_RE.test(cur)) patch.voice = '';
                   }
                   setPersonaTts(safeIdx, patch);
                 }}
