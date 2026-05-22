@@ -10,6 +10,7 @@ services:
   # -------------------------------------------------------------------------
   icecast:
     image: moul/icecast:latest
+    platform: linux/amd64
     container_name: sub-wave-icecast
     restart: unless-stopped
     ports:

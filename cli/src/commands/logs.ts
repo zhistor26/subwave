@@ -4,9 +4,14 @@
 // With no arg, prompts for a service (or "all"). With `all` (literal),
 // tails every service. With a service name, tails just that one.
 
-import { detectCompose, listDeclaredServices, type ComposeFile } from '../compose.ts';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { detectCompose, listDeclaredServices, type ComposeFile, type ComposeEnv } from '../compose.ts';
 import { composeLogs } from '../docker.ts';
 import { exitIfCancelled, err, info, muted, p, pauseForEnter, header } from '../ui.ts';
+import { WEB_DEV_LOG } from '../web-dev.ts';
+
+const WEB_DEV_SERVICE = 'web (dev)';
 
 export interface LogsOpts {
   service?: string;
@@ -21,8 +26,13 @@ export async function runLogsCommand(opts: LogsOpts = {}): Promise<void> {
     return;
   }
 
-  const services = await resolveServices(current.file, opts.service);
+  const services = await resolveServices(current.file, current.env, opts.service);
   if (!services) return;
+
+  // Special-case the host-side web dev server — not in docker, separate log.
+  if (services.length === 1 && services[0] === WEB_DEV_SERVICE) {
+    return tailWebDev();
+  }
 
   header(services.length === 0 ? 'Tailing all services' : `Tailing ${services.join(', ')}`);
   muted('Ctrl-C to stop.');
@@ -31,24 +41,51 @@ export async function runLogsCommand(opts: LogsOpts = {}): Promise<void> {
   await composeLogs(current.file, services);
 }
 
-async function resolveServices(file: ComposeFile, arg?: string): Promise<string[] | null> {
+async function resolveServices(file: ComposeFile, env: ComposeEnv, arg?: string): Promise<string[] | null> {
   const declared = listDeclaredServices(file);
+  // Aliases the operator can pass on the command line. The picker label uses
+  // the spaced form, but `subwave logs web-dev` should work as a shorthand.
+  const WEB_DEV_ALIASES = new Set(['web-dev', 'webdev', WEB_DEV_SERVICE]);
 
   if (arg) {
     if (arg === 'all') return [];
+    if (env === 'dev' && WEB_DEV_ALIASES.has(arg)) return [WEB_DEV_SERVICE];
     if (!declared.includes(arg)) {
-      err(`unknown service: ${arg}. known: ${declared.join(', ')}`);
+      err(`unknown service: ${arg}. known: ${declared.join(', ')}${env === 'dev' ? ', web-dev' : ''}`);
       return null;
     }
     return [arg];
   }
 
+  const options = [
+    { value: '__all__', label: 'all services', hint: 'tail everything' },
+    ...declared.map((s) => ({ value: s, label: s })),
+  ];
+  if (env === 'dev') {
+    options.push({
+      value: WEB_DEV_SERVICE,
+      label: WEB_DEV_SERVICE,
+      hint: 'tail state/logs/web-dev.log',
+    });
+  }
   const choice = exitIfCancelled(await p.select<string>({
     message: 'Which logs?',
-    options: [
-      { value: '__all__', label: 'all services', hint: 'tail everything' },
-      ...declared.map((s) => ({ value: s, label: s })),
-    ],
+    options,
   }));
   return choice === '__all__' ? [] : [choice];
+}
+
+async function tailWebDev(): Promise<void> {
+  header('Tailing web (dev)');
+  muted(`source: ${WEB_DEV_LOG}`);
+  muted('Ctrl-C to stop.');
+  console.log();
+  if (!existsSync(WEB_DEV_LOG)) {
+    info('log file does not exist yet — start the web dev server to create it.');
+    return;
+  }
+  await new Promise<void>((resolveP) => {
+    const child = spawn('tail', ['-n', '200', '-f', WEB_DEV_LOG], { stdio: 'inherit' });
+    child.on('exit', () => resolveP());
+  });
 }

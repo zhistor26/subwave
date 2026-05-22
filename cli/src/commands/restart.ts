@@ -10,9 +10,14 @@
 // When invoked with no arg, presents a select with the per-service hint
 // so the operator doesn't have to remember which is which.
 
-import { detectCompose, listDeclaredServices, type ComposeFile } from '../compose.ts';
+import { detectCompose, listDeclaredServices, type ComposeFile, type ComposeEnv } from '../compose.ts';
 import { composeRestart, composeUpBuild } from '../docker.ts';
 import { exitIfCancelled, ok, err, info, muted, p, pc, pauseForEnter, header } from '../ui.ts';
+import { maybeStartWebDev, stopWebDev } from '../web-dev.ts';
+
+// Sentinel service name for the host-side web dev server (not a compose
+// service in dev mode). Same string the operator sees in the picker.
+const WEB_DEV_SERVICE = 'web (dev)';
 
 interface ServicePolicy {
   rebuild: boolean;
@@ -42,8 +47,29 @@ export async function runRestartCommand(opts: RestartOpts = {}): Promise<void> {
     return;
   }
 
-  const service = opts.service ?? (await pickService(current.file));
+  const service = opts.service ?? (await pickService(current.file, current.env));
   if (!service) return;
+
+  // Host-side web dev server — not a compose service, no docker involved.
+  if (service === WEB_DEV_SERVICE || service === 'web-dev') {
+    if (current.env !== 'dev') {
+      err('`web (dev)` only applies to the dev stack — in prod, restart `web` (the compose service).');
+      await pauseForEnter();
+      return;
+    }
+    header('Restarting web dev server');
+    const stopResult = stopWebDev();
+    if (stopResult.stopped) {
+      muted('killed prior next dev');
+    } else if (stopResult.reason && stopResult.reason !== 'not running') {
+      muted(`stop: ${stopResult.reason}`);
+    }
+    const state = await maybeStartWebDev({ askFirst: false });
+    if (state === 'running') ok('web dev restarted.');
+    else err('web dev not running after restart.');
+    await pauseForEnter();
+    return;
+  }
 
   const policy = POLICY[service] ?? { rebuild: false, hint: 'restart' };
   const rebuild = opts.forceBuild || policy.rebuild;
@@ -66,7 +92,7 @@ export async function runRestartCommand(opts: RestartOpts = {}): Promise<void> {
   await pauseForEnter();
 }
 
-async function pickService(file: ComposeFile): Promise<string | null> {
+async function pickService(file: ComposeFile, env: ComposeEnv): Promise<string | null> {
   const declared = listDeclaredServices(file);
   if (declared.length === 0) {
     err('could not list services from compose.');
@@ -80,6 +106,15 @@ async function pickService(file: ComposeFile): Promise<string | null> {
       hint: policy.hint,
     };
   });
+  // In dev, the web UI runs as a host-side `npm run dev` process (not a
+  // compose service), so it isn't in `declared`. Offer it as an extra row.
+  if (env === 'dev') {
+    options.push({
+      value: WEB_DEV_SERVICE,
+      label: WEB_DEV_SERVICE,
+      hint: 'kill + respawn `npm run dev` on :7700',
+    });
+  }
   const chosen = exitIfCancelled(await p.select<string>({
     message: 'Which service?',
     options,

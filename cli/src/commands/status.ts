@@ -5,6 +5,7 @@ import { detectCompose } from '../compose.ts';
 import { makeClient, type NowPlayingPayload, type StatePayload } from '../api.ts';
 import { formatRelative, truncate } from '../util.ts';
 import { ok, warn, err, info, muted, header, pc, accent, pauseForEnter } from '../ui.ts';
+import { whoHolds7700, readWebDevPid } from '../web-dev.ts';
 
 export async function runStatusCommand(): Promise<void> {
   const compose = detectCompose();
@@ -21,6 +22,24 @@ export async function runStatusCommand(): Promise<void> {
     if (state === 'running') ok(`${svc} — ${pc.dim(state)}`);
     else if (state === 'restarting') warn(`${svc} — ${pc.dim(state)}`);
     else err(`${svc} — ${pc.dim(state)}`);
+  }
+
+  // Dev mode only: the web UI runs as a host-side `npm run dev`, not a
+  // compose service, so it doesn't appear in compose.services. Surface it
+  // here so `status` covers the whole rig in one glance.
+  if (compose.env === 'dev') {
+    const holder = whoHolds7700();
+    const trackedPid = readWebDevPid();
+    if (!holder) {
+      warn(`web (dev) — ${pc.dim('not running on :7700')}`);
+    } else if (holder.command === 'node') {
+      const detail = trackedPid === holder.pid
+        ? `running · pid ${holder.pid}`
+        : `running · pid ${holder.pid} ${pc.dim('(not started by this CLI)')}`;
+      ok(`web (dev) — ${pc.dim(detail)}`);
+    } else {
+      err(`web (dev) — ${pc.dim(`:7700 held by ${holder.command} (pid ${holder.pid})`)}`);
+    }
   }
 
   const client = makeClient(compose.env);

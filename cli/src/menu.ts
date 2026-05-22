@@ -6,6 +6,7 @@
 
 import { detectCompose } from './compose.ts';
 import { setMenuMode, MENU_BACK, banner, header, ok, warn, muted, exitIfCancelled, p, pc } from './ui.ts';
+import { whoHolds7700 } from './web-dev.ts';
 import { runStatusCommand } from './commands/status.ts';
 import { runDoctorCommand } from './commands/doctor.ts';
 import { runStartCommand } from './commands/start.ts';
@@ -27,8 +28,16 @@ export async function runMenu(): Promise<void> {
   if (compose.env === 'down') {
     warn('stack down');
   } else {
-    const running = Object.values(compose.services).filter((s) => s === 'running').length;
-    const total = Object.keys(compose.services).length;
+    let running = Object.values(compose.services).filter((s) => s === 'running').length;
+    let total = Object.keys(compose.services).length;
+    // In dev the web UI is a host-side `npm run dev` process, not a compose
+    // service — fold it into the running/total tally so the banner reflects
+    // the whole rig.
+    if (compose.env === 'dev') {
+      const holder = whoHolds7700();
+      total += 1;
+      if (holder?.command === 'node') running += 1;
+    }
     ok(`stack up · env=${pc.bold(compose.env)} · ${running}/${total} running`);
   }
   console.log();

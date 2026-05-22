@@ -23,7 +23,8 @@
 //  13. POST /settings to apply the LLM choice (so the operator's first DJ
 //      action uses the right provider, no admin-UI detour)
 //  14. Optionally render jingles
-//  15. Endpoints summary
+//  15. Dev only: optionally start `npm run dev` (web UI) in the background
+//  16. Endpoints summary
 //
 // Probes (cli/src/probes.ts) are warn-not-fail — the operator can keep
 // going if the network isn't ready yet.
@@ -53,6 +54,7 @@ import {
   type ProbeResult,
 } from '../probes.ts';
 import { p, pc, accent, exitIfCancelled, banner, header, ok, warn, err, muted } from '../ui.ts';
+import { maybeStartWebDev, type WebDevState } from '../web-dev.ts';
 
 type Mode = 'dev' | 'prod';
 
@@ -187,7 +189,13 @@ export async function runSetupCommand(): Promise<void> {
     await renderJingles(file.file, bashEnv);
   }
 
-  // --- 15. Summary --------------------------------------------------------
+  // --- 15. Dev only: start the web dev server -----------------------------
+  let webDevState: WebDevState = 'skipped';
+  if (mode === 'dev') {
+    webDevState = await maybeStartWebDev();
+  }
+
+  // --- 16. Summary --------------------------------------------------------
   header('Endpoints');
   if (mode === 'prod') {
     muted(`Site:    ${accent('http://localhost:4800')}`);
@@ -196,11 +204,18 @@ export async function runSetupCommand(): Promise<void> {
   } else {
     muted(`Controller:  ${accent('http://localhost:7701')}`);
     muted(`Stream:      ${accent('http://localhost:7702/stream.mp3')}`);
-    muted(`Web (dev):   ${accent('http://localhost:7700')}  (separate: `+ pc.dim('`npm --prefix web run dev`') + ')');
+    if (webDevState === 'running') {
+      muted(`Web (dev):   ${accent('http://localhost:7700')}  ${pc.dim('(running — log: state/logs/web-dev.log, pid: state/logs/web-dev.pid)')}`);
+    } else {
+      muted(`Web (dev):   ${accent('http://localhost:7700')}  (separate: `+ pc.dim('`npm --prefix web run dev`') + ')');
+    }
   }
 
   console.log();
-  ok('Setup complete. Try `subwave status` or `subwave doctor`.');
+  ok('Setup complete.');
+  muted(`Try ${pc.dim('`npm start -- status`')} or ${pc.dim('`npm start -- doctor`')}.`);
+  console.log();
+  muted(`Open the terminal player: ${accent('npm start -- play')}`);
 }
 
 // ---------------------------------------------------------------------------

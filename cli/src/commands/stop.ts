@@ -7,6 +7,7 @@
 import { detectCompose } from '../compose.ts';
 import { composeDown } from '../docker.ts';
 import { exitIfCancelled, ok, err, info, muted, p, pc, pauseForEnter, header } from '../ui.ts';
+import { stopWebDev } from '../web-dev.ts';
 
 export async function runStopCommand(): Promise<void> {
   const current = detectCompose();
@@ -38,5 +39,18 @@ export async function runStopCommand(): Promise<void> {
   } else {
     ok('stack stopped.');
   }
+
+  // Dev mode: the web dev server lives outside docker — kill it too, so a
+  // single `subwave stop` brings the whole rig down. In prod, web is a
+  // compose service and `composeDown` already handled it.
+  if (current.env === 'dev') {
+    const r = stopWebDev();
+    if (r.stopped) {
+      ok('web dev server stopped.');
+    } else if (r.reason && r.reason !== 'not running') {
+      muted(`web dev: ${r.reason}`);
+    }
+  }
+
   await pauseForEnter();
 }

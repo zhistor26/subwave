@@ -14,6 +14,7 @@ import { detectCompose, type ComposeStatus } from './compose.ts';
 import { dockerDaemonOk, composeExec } from './docker.ts';
 import { makeClient } from './api.ts';
 import { CONTROLLER_ENV, parseEnvFile, REPO_ROOT, STATE_DIR, fetchErrorReason } from './util.ts';
+import { whoHolds7700, readWebDevPid, WEB_DEV_LOG } from './web-dev.ts';
 
 export type Status = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -43,6 +44,11 @@ export async function runDoctor(): Promise<DoctorReport> {
   sections.push({ name: 'Compose', findings: checkCompose(compose) });
   sections.push({ name: 'Controller', findings: await checkController(compose) });
   sections.push({ name: 'Icecast', findings: await checkIcecast(compose) });
+  // Web dev server only exists in dev mode (in prod it's a compose service
+  // and Compose section already covers it).
+  if (compose.env === 'dev') {
+    sections.push({ name: 'Web (dev)', findings: await checkWebDev() });
+  }
   sections.push({ name: 'State', findings: checkState() });
   sections.push({ name: 'Content', findings: checkContent() });
   sections.push({ name: 'Logs', findings: checkLogs(compose) });
@@ -243,6 +249,81 @@ async function checkIcecast(compose: ComposeStatus): Promise<Finding[]> {
       hint: 'Icecast may be down. Check `subwave logs icecast`.',
     }];
   }
+}
+
+async function checkWebDev(): Promise<Finding[]> {
+  const out: Finding[] = [];
+
+  // Port holder. ControlCenter on :7700 is the macOS AirPlay Receiver — the
+  // single most common false collision; call it out explicitly so operators
+  // don't waste time guessing.
+  const holder = whoHolds7700();
+  if (!holder) {
+    out.push({
+      label: ':7700',
+      status: 'warn',
+      detail: 'nothing listening',
+      hint: 'Start it with `subwave start dev` or `subwave restart web-dev`.',
+    });
+    return out;
+  }
+  if (holder.command === 'ControlCenter') {
+    out.push({
+      label: ':7700',
+      status: 'fail',
+      detail: `held by ControlCenter (pid ${holder.pid}) — macOS AirPlay Receiver`,
+      hint: 'Disable AirPlay Receiver in System Settings → General → AirDrop & Handoff, then restart web-dev.',
+    });
+    return out;
+  }
+  if (holder.command !== 'node') {
+    out.push({
+      label: ':7700',
+      status: 'fail',
+      detail: `held by ${holder.command} (pid ${holder.pid}) — not a node dev server`,
+      hint: `Free :7700 (kill pid ${holder.pid}), then \`subwave restart web-dev\`.`,
+    });
+    return out;
+  }
+
+  // Cross-check the pid file. If the CLI started this dev server, the pid
+  // file should match — otherwise it's an outside-spawned next dev (fine,
+  // but worth noting because `subwave stop` won't have a pid to consult).
+  const trackedPid = readWebDevPid();
+  out.push({
+    label: ':7700',
+    status: 'ok',
+    detail: trackedPid === holder.pid
+      ? `node pid ${holder.pid} · tracked`
+      : `node pid ${holder.pid} · not started by this CLI`,
+  });
+
+  // HTTP probe — proves Next is actually compiled and serving, not just
+  // bound to the socket.
+  try {
+    const res = await fetch('http://localhost:7700', {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.status > 0) {
+      out.push({
+        label: 'http://localhost:7700',
+        status: 'ok',
+        detail: `${res.status} ${res.statusText || ''}`.trim(),
+      });
+    } else {
+      out.push({ label: 'http://localhost:7700', status: 'warn', detail: 'empty response' });
+    }
+  } catch (e) {
+    const reason = fetchErrorReason(e);
+    out.push({
+      label: 'http://localhost:7700',
+      status: 'fail',
+      detail: reason,
+      hint: `Next.js may still be compiling on first load — check \`${WEB_DEV_LOG}\`.`,
+    });
+  }
+
+  return out;
 }
 
 function checkState(): Finding[] {

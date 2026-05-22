@@ -15,10 +15,10 @@ Usage:
   subwave setup            (re-)run the install wizard
   subwave status           quick stack + now-playing snapshot
   subwave doctor           full diagnostic sweep
-  subwave start [dev|prod] docker compose up -d
-  subwave stop             docker compose down (with confirmation)
-  subwave restart [svc]    rebuild / restart a service
-  subwave logs [svc|all]   tail docker compose logs
+  subwave start [dev|prod] docker compose up -d (dev also starts web \`npm run dev\`)
+  subwave stop             docker compose down (also kills web dev in dev mode)
+  subwave restart [svc]    rebuild / restart a service (dev adds \`web-dev\`)
+  subwave logs [svc|all]   tail docker compose logs (dev adds \`web-dev\`)
   subwave play [dev|prod]  open the terminal player (TUI)
   subwave listen [dev|prod] open the web player in a browser
   subwave admin [dev|prod] open the admin console in a browser

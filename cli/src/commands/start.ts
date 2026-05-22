@@ -13,6 +13,7 @@ import { composeUp } from '../docker.ts';
 import { waitForHealth } from '../api.ts';
 import { loadConfig, saveConfig } from '../config.ts';
 import { exitIfCancelled, ok, warn, err, info, muted, p, pc, pauseForEnter, header } from '../ui.ts';
+import { maybeStartWebDev } from '../web-dev.ts';
 
 export interface StartOpts {
   envArg?: 'dev' | 'prod';
@@ -63,12 +64,24 @@ export async function runStartCommand(opts: StartOpts = {}): Promise<void> {
   if (healthy) ok('stack ready');
   else warn('stack started but /health is not yet returning on-air');
 
+  // Dev mode: web is a host-side `npm run dev` process, not a compose
+  // service. Bring it up here so `start` matches `setup` and the operator
+  // doesn't have to remember a second command.
+  let webDevState: 'running' | 'skipped' = 'skipped';
+  if (target.env === 'dev') {
+    webDevState = await maybeStartWebDev();
+  }
+
   console.log();
   if (target.env === 'prod') {
     muted('→ http://localhost:4800   (stream: /stream.mp3, api: /api/*)');
   } else {
     muted('→ controller: http://localhost:7701    stream: http://localhost:7702/stream.mp3');
-    muted('  web dev server (separate): `npm --prefix web run dev`  on http://localhost:7700');
+    if (webDevState === 'running') {
+      muted('  web (dev): http://localhost:7700  (log: state/logs/web-dev.log)');
+    } else {
+      muted('  web dev server (separate): `npm --prefix web run dev`  on http://localhost:7700');
+    }
   }
 
   await pauseForEnter();
