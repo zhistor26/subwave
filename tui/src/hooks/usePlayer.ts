@@ -31,6 +31,13 @@ export function usePlayer(streamUrl: string): PlayerState {
     if (tunedIn) sp.setVolume(muted ? 0 : volume);
   }, [volume, muted, tunedIn, sp]);
 
+  // If the audio child dies on its own — a crash, or the stream connection
+  // dropping — flip `tunedIn` back off so the UI stops claiming a dead
+  // process is playing. The listener can press space to re-tune.
+  useEffect(() => {
+    sp.onExit(() => setTunedIn(false));
+  }, [sp]);
+
   // Kill the child process if the app exits while playback is live.
   useEffect(() => () => sp.stop(), [sp]);
 

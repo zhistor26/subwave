@@ -27,12 +27,18 @@ export class StreamPlayer {
   readonly engine: Engine | null;
   private child: ChildProcess | null;
   private ipcPath: string | null;
+  // Set true by stop() so the child's exit handler can tell an intentional
+  // teardown from a crash / stream drop and only fire onExitCb for the latter.
+  private stopping: boolean;
+  private onExitCb: (() => void) | null;
 
   constructor(streamUrl: string) {
     this.streamUrl = streamUrl;
     this.engine = detectEngine();
     this.child = null;
     this.ipcPath = null;
+    this.stopping = false;
+    this.onExitCb = null;
   }
 
   get available(): boolean { return this.engine != null; }
@@ -40,9 +46,16 @@ export class StreamPlayer {
   // Only mpv can change volume after launch (via its IPC socket).
   get supportsVolume(): boolean { return this.engine === 'mpv'; }
 
+  // Register a callback fired when the audio child exits on its own — a
+  // crash, or the stream connection dropping — as opposed to stop() killing
+  // it. Lets the UI flip `tunedIn` back off so it never claims to be playing
+  // a process that is already gone.
+  onExit(cb: () => void): void { this.onExitCb = cb; }
+
   // Start playback. `volume` is 0–100; ignored by the ffplay path.
   play(volume = 70): void {
     if (!this.engine || this.child) return;
+    this.stopping = false;
     if (this.engine === 'mpv') {
       this.ipcPath = path.join(os.tmpdir(), `subwave-mpv-${process.pid}.sock`);
       this.child = spawn('mpv', [
@@ -54,16 +67,25 @@ export class StreamPlayer {
         this.streamUrl,
       ], { stdio: 'ignore' });
     } else {
+      // No -autoexit: that flag is for finite files. On a continuous Icecast
+      // stream any momentary socket blip reads as EOF and ffplay would quit
+      // for good, with nothing to respawn it.
       this.child = spawn('ffplay', [
-        '-nodisp', '-autoexit', '-loglevel', 'quiet', this.streamUrl,
+        '-nodisp', '-loglevel', 'quiet', this.streamUrl,
       ], { stdio: 'ignore' });
     }
-    this.child.on('error', () => { this.child = null; });
-    this.child.on('exit', () => { this.child = null; });
+    const handleGone = () => {
+      this.child = null;
+      this.ipcPath = null;
+      if (!this.stopping) this.onExitCb?.();
+    };
+    this.child.on('error', handleGone);
+    this.child.on('exit', handleGone);
   }
 
   stop(): void {
     if (this.child) {
+      this.stopping = true;
       this.child.kill('SIGTERM');
       this.child = null;
     }
