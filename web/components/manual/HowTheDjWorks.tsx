@@ -3,7 +3,7 @@ import ManualPage from './ManualPage';
 export default function HowTheDjWorks() {
   return (
     <ManualPage
-      eyebrow="MANUAL · 04"
+      eyebrow="MANUAL · 05"
       title="How the DJ works."
       intro="There's no human at the desk. An LLM picks every track, writes every line, and a text-to-speech voice reads it out. Here's how that adds up to a station that sounds like a station."
       current="/manual/dj"

@@ -1,7 +1,7 @@
 // Misc helpers. Kept dependency-free so any module can pull these in.
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -26,6 +26,22 @@ export function have(bin: string): boolean {
   // Plain POSIX `which`. Good enough for the operator CLI; we don't ship
   // anywhere `which` isn't available (macOS, Linux, WSL).
   return spawnSync('which', [bin], { stdio: 'ignore' }).status === 0;
+}
+
+// Open a URL in the operator's default browser. Detached and best-effort —
+// returns false if the platform opener can't be spawned.
+export function openUrl(url: string): boolean {
+  const [cmd, args]: [string, string[]] =
+    process.platform === 'darwin' ? ['open', [url]]
+    : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
+    : ['xdg-open', [url]];
+  try {
+    const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Parse a .env file into { KEY: VALUE }. Comments and blank lines skipped.

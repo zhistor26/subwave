@@ -62,6 +62,12 @@ docker compose -f docker/docker-compose.prod.yml up -d --build controller web
             <code className="bs-code-inline">docker compose -f docker/docker-compose.prod.yml logs -f liquidsoap</code>
           </li>
           <li>
+            <strong>Operator console</strong> —{' '}
+            <code className="bs-code-inline">npm start</code> opens a menu whose{' '}
+            <strong>doctor</strong> option runs a full diagnostic sweep and{' '}
+            <strong>logs</strong> tails any service without the long compose flags.
+          </li>
+          <li>
             <strong>Built-in diagnostics</strong> — open{' '}
             <Link href="/admin/debug" className="bs-link">/admin/debug</Link> for a live
             snapshot of every state file, recent LLM calls, Icecast status, and the most

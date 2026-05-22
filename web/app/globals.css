@@ -1046,7 +1046,7 @@ body::after {
     background: color-mix(in oklab, var(--ink) 6%, transparent);
     border: 1px solid var(--separator-strong);
     border-left: 3px solid var(--accent);
-    padding: 14px 16px;
+    padding: 32px 16px 14px;
     font-size: 13px;
     line-height: 1.55;
     color: var(--ink);
@@ -1154,6 +1154,156 @@ body::after {
     color: var(--ink);
 }
 .bs-rebuild-table td:last-child {
+    color: var(--muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SETUP POLISH — fast-path box, prerequisites checklist, dev/prod split,
+   code-block language label, and the hero aside that carries the spinning
+   record glyph. All within the broadsheet token set.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Hero with an optional aside column (the spinning glyph). When no aside is
+   present the hero renders as the plain single column it always was. */
+.bs-setup-hero[data-aside] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 160px;
+    gap: clamp(20px, 4vw, 48px);
+    align-items: center;
+    max-width: 940px;
+}
+.bs-setup-hero-main {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.bs-setup-hero-aside {
+    display: flex;
+    justify-content: flex-end;
+}
+.bs-setup-hero-aside .bs-dj-glyph {
+    width: 140px;
+    max-width: 140px;
+}
+@media (max-width: 620px) {
+    .bs-setup-hero[data-aside] {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .bs-setup-hero-aside {
+        display: none;
+    }
+}
+
+/* Meta line under the hero title — "≈ 10 MIN · 4 COMMANDS". */
+.bs-setup-meta {
+    margin: 0;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+/* The fast-path box — the four-command block, made the visual anchor. */
+.bs-faststart {
+    border: 1px solid var(--ink);
+    border-left: 4px solid var(--accent);
+    padding: clamp(20px, 3vw, 32px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 8px;
+}
+.bs-faststart .bs-eyebrow {
+    color: var(--accent);
+}
+.bs-faststart p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink);
+    max-width: 64ch;
+}
+.bs-faststart p.text-muted {
+    color: var(--muted);
+}
+
+/* Prerequisites checklist — three scannable items with a hollow accent
+   square marker, replacing three stacked sections. */
+.bs-checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.bs-checklist li {
+    position: relative;
+    padding-left: 26px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--muted);
+}
+.bs-checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 4px;
+    width: 9px;
+    height: 9px;
+    border: 1px solid var(--accent);
+    background: transparent;
+}
+.bs-checklist li strong {
+    color: var(--ink);
+    font-weight: 700;
+}
+.bs-checklist li p {
+    margin: 4px 0 0;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--muted);
+}
+
+/* Dev / production side-by-side — replaces a long bullet list. */
+.bs-devprod {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid var(--separator-strong);
+    margin-top: 8px;
+}
+.bs-devprod > div {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.bs-devprod > div + div {
+    border-left: 1px solid var(--separator-strong);
+}
+.bs-devprod .bs-eyebrow {
+    color: var(--accent);
+}
+@media (max-width: 640px) {
+    .bs-devprod {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .bs-devprod > div + div {
+        border-left: 0;
+        border-top: 1px solid var(--separator-strong);
+    }
+}
+
+/* Language label for code blocks — mirrors .bs-copy, opposite corner. */
+.bs-code-lang {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
     color: var(--muted);
 }
 

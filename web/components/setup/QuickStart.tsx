@@ -16,33 +16,53 @@ export default function QuickStart() {
           A terminal wizard that writes the env files, brings up the right compose file, and
           renders the station jingles. Requires Node 20+ and Docker.
         </p>
-        <CodeBlock>{`git clone https://github.com/perminder-klair/subwave.git
+        <div className="bs-faststart">
+          <p className="bs-eyebrow">FOUR COMMANDS</p>
+          <CodeBlock>{`git clone https://github.com/perminder-klair/subwave.git
 cd subwave
 npm install
 npm run setup`}</CodeBlock>
-        <p>
-          Its first question is <em>dev or production?</em> Then it prompts for Navidrome and
-          Ollama, runs <code className="bs-code-inline">scripts/setup.sh</code>, boots the
-          stack, and generates jingles.
-        </p>
-        <ul className="bs-list">
-          <li>
-            <strong>Dev</strong> — uses{' '}
-            <code className="bs-code-inline">docker-compose.yml</code>, keeps state in{' '}
-            <code className="bs-code-inline">./state</code>, and optionally launches{' '}
-            <code className="bs-code-inline">next dev</code> on{' '}
-            <code className="bs-code-inline">:7700</code>.
-          </li>
-          <li>
-            <strong>Production</strong> — uses{' '}
-            <code className="bs-code-inline">docker-compose.prod.yml</code> with{' '}
-            <code className="bs-code-inline">--build</code>, Caddy on{' '}
-            <code className="bs-code-inline">:4800</code>, state in{' '}
-            <code className="bs-code-inline">./state</code> (or wherever{' '}
-            <code className="bs-code-inline">STATE_DIR</code> points). Re-run with sudo if the
-            state directory isn't writable.
-          </li>
-        </ul>
+          <p className="text-muted">
+            Its first question is <em>dev or production?</em> Then it prompts for
+            Navidrome and Ollama, runs{' '}
+            <code className="bs-code-inline">scripts/setup.sh</code>, boots the
+            stack, and generates jingles.
+          </p>
+        </div>
+        <div className="bs-devprod">
+          <div>
+            <p className="bs-eyebrow">DEV</p>
+            <ul className="bs-list">
+              <li>
+                <code className="bs-code-inline">docker-compose.yml</code>
+              </li>
+              <li>
+                state in <code className="bs-code-inline">./state</code>
+              </li>
+              <li>
+                optionally launches <code className="bs-code-inline">next dev</code> on{' '}
+                <code className="bs-code-inline">:7700</code>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p className="bs-eyebrow">PRODUCTION</p>
+            <ul className="bs-list">
+              <li>
+                <code className="bs-code-inline">docker-compose.prod.yml</code> with{' '}
+                <code className="bs-code-inline">--build</code>
+              </li>
+              <li>
+                Caddy on <code className="bs-code-inline">:4800</code>
+              </li>
+              <li>
+                state in <code className="bs-code-inline">./state</code> (or{' '}
+                <code className="bs-code-inline">STATE_DIR</code>) — re-run with sudo
+                if it isn't writable
+              </li>
+            </ul>
+          </div>
+        </div>
         <div className="bs-callout">
           <div className="bs-eyebrow">SAFE TO RE-RUN</div>
           <p>
@@ -76,6 +96,28 @@ cd subwave
             only those. Liquidsoap and the Controller <em>COPY</em> their source at build
             time, so a plain <code className="bs-code-inline">docker compose restart</code>{' '}
             silently runs stale code — the skill won't make that mistake.
+          </p>
+        </div>
+      </section>
+
+      <section className="bs-section">
+        <p className="bs-eyebrow">ONCE IT'S ON THE AIR</p>
+        <h2>Run the station from the CLI.</h2>
+        <p>
+          The setup wizard is one screen of the operator console. Run{' '}
+          <code className="bs-code-inline">npm start</code> from the repo any time to open it
+          — a menu to check the stack, run a diagnostic sweep, tail logs, restart a service,
+          or open the terminal player.
+        </p>
+        <CodeBlock>{`npm start`}</CodeBlock>
+        <div className="bs-callout">
+          <div className="bs-eyebrow">LISTEN FROM THE TERMINAL</div>
+          <p>
+            The console's <strong>play</strong> option launches the TUI player — now-playing,
+            the timeline, the live booth feed, and track requests, right in your terminal. It
+            needs <code className="bs-code-inline">mpv</code> or{' '}
+            <code className="bs-code-inline">ffplay</code> for audio, and runs as a read-only
+            dashboard without them.
           </p>
         </div>
       </section>

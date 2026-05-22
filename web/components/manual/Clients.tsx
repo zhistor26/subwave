@@ -28,11 +28,36 @@ const VLC_PLATFORMS = [
 export default function Clients() {
   return (
     <ManualPage
-      eyebrow="MANUAL · 08"
+      eyebrow="MANUAL · 03"
       title="Listen with other apps."
       intro="The browser player is the front door to SUB/WAVE, but it isn't the only way in. Underneath, the station is a single Icecast MP3 stream — and any app that can open an internet-radio URL can listen along, in perfect sync with everyone else."
       current="/manual/clients"
     >
+      <section className="bs-section">
+        <p className="bs-eyebrow">SUB/WAVE TUI</p>
+        <h2>The station&rsquo;s own terminal app.</h2>
+        <p>
+          Start here: SUB/WAVE ships its own terminal player. Where the other apps below just
+          carry the audio, the TUI mirrors the browser player &mdash; now-playing with track
+          metadata, the timeline of recent and upcoming songs, the live booth feed, and a
+          request form.
+        </p>
+        <p>
+          It&rsquo;s built into the operator console, so there&rsquo;s nothing separate to
+          install. From a SUB/WAVE checkout, run <code className="bs-code-inline">npm
+          start</code> and choose <strong>play</strong> — the TUI opens pointed at your stack:
+        </p>
+        <CodeBlock>{`npm start        # then choose "play"`}</CodeBlock>
+        <p className="text-muted">
+          For audio it wants <code className="bs-code-inline">mpv</code> (preferred &mdash; it
+          allows live volume control) or <code className="bs-code-inline">ffplay</code>; with
+          neither installed the TUI still runs as a read-only dashboard. The same console also
+          opens the web player and admin in your browser &mdash;{' '}
+          <Link href="/manual/cli" className="bs-link">The Operator CLI</Link> covers all of
+          it.
+        </p>
+      </section>
+
       <section className="bs-section">
         <p className="bs-eyebrow">THE ONE THING YOU NEED</p>
         <h2>The stream URL.</h2>
@@ -167,10 +192,10 @@ cliamp http://100.x.x.x:4800/stream.mp3   # over Tailscale`}</CodeBlock>
         <p className="bs-eyebrow">MORE TO COME</p>
         <h2>Any MP3 stream player works.</h2>
         <p>
-          VLC and cliamp are the walked-through examples, but they aren&rsquo;t special
-          &mdash; anything that can open an internet-radio URL can tune in. More client
-          guides will be added here over time. Running the station yourself rather than
-          listening along? That&rsquo;s covered in{' '}
+          The SUB/WAVE TUI is the full-featured way in; VLC and cliamp are the walked-through
+          audio-only examples &mdash; but none of them are special. Anything that can open an
+          internet-radio URL can tune in, and more client guides will be added here over time.
+          Running the station yourself rather than listening along? That&rsquo;s covered in{' '}
           <Link href="/setup" className="bs-link">the setup guide</Link>.
         </p>
       </section>

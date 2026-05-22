@@ -13,6 +13,11 @@ const GUIDE = [
     blurb: 'Ask the DJ for a track, an artist, or just a mood — and what happens after you do.',
   },
   {
+    href: '/manual/clients',
+    label: 'Listen With',
+    blurb: 'Tune in from the SUB/WAVE TUI, VLC, or any app that opens an internet-radio stream.',
+  },
+  {
     href: '/manual/shortcuts',
     label: 'Keyboard Shortcuts',
     blurb: 'Drive the whole player from the keyboard, plus the command palette.',
@@ -28,6 +33,11 @@ const GUIDE = [
     blurb: 'For the operator — signing in, tuning the DJ, scheduling shows, and managing jingles.',
   },
   {
+    href: '/manual/cli',
+    label: 'The Operator CLI',
+    blurb: 'Run the station from the terminal — a status-aware console for health, logs, restarts, and the players.',
+  },
+  {
     href: '/manual/llm',
     label: 'Models & Tokens',
     blurb: 'Tune the station for a small local model or a large hosted one — trading richness against token cost.',
@@ -36,11 +46,6 @@ const GUIDE = [
     href: '/manual/mcp',
     label: 'Agent Access',
     blurb: 'Let an AI agent read the station and request tracks over the MCP server.',
-  },
-  {
-    href: '/manual/clients',
-    label: 'Listen With',
-    blurb: 'Tune in from VLC, cliamp, or any app that opens an internet-radio stream.',
   },
   {
     href: '/manual/faq',
@@ -59,7 +64,7 @@ export default function Overview() {
     >
       <section className="bs-section">
         <p className="bs-eyebrow">WHAT'S INSIDE</p>
-        <h2>Six short guides.</h2>
+        <h2>Ten short guides.</h2>
         <p>
           Start at the top if you're new. Each page links to the next, so you can read
           straight through, or jump to whatever you need from the contents on the left.

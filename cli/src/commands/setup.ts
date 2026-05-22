@@ -56,13 +56,34 @@ import { p, pc, exitIfCancelled, banner, header, ok, warn, err, muted } from '..
 
 type Mode = 'dev' | 'prod';
 
+// LLM providers — kept in step with the controller's LLM_PROVIDERS list
+// (controller/src/settings.ts) and the admin Settings UI provider picker.
+type CloudProvider = 'anthropic' | 'openai' | 'google' | 'deepseek' | 'openrouter' | 'gateway';
+type LlmProvider = 'ollama' | 'openai-compatible' | CloudProvider;
+
+// Cloud providers whose API key the AI SDK reads from a controller env var.
+// openai-compatible is deliberately absent — it has no canonical env var, so
+// its key (when a self-hosted server needs one) goes into settings instead.
+const CLOUD_ENV_VAR: Record<CloudProvider, string> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  google: 'GOOGLE_GENERATIVE_AI_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  gateway: 'AI_GATEWAY_API_KEY',
+};
+
 interface LlmChoice {
-  provider: 'ollama' | 'openai' | 'anthropic' | 'openrouter' | null; // null = "configure later"
-  // Ollama-only:
+  provider: LlmProvider | null; // null = "configure later"
+  // Ollama only:
   ollamaUrl?: string;
   ollamaModel?: string;
-  // Cloud only — the API key goes into controller/.env as <PROVIDER>_API_KEY;
-  // the AI SDK picks it up automatically when settings.llm.apiKey is empty.
+  // openai-compatible only — the self-hosted server URL (with /v1 suffix):
+  baseUrl?: string;
+  // Model id — openai-compatible + cloud. Optional: blank defers to the admin UI.
+  model?: string;
+  // API key. Cloud → written to controller/.env as the provider's env var.
+  // openai-compatible → applied to settings.llm.apiKey (no env var exists).
   apiKey?: string;
 }
 
@@ -102,9 +123,9 @@ export async function runSetupCommand(): Promise<void> {
     ADMIN_USER: admin.user,
     ADMIN_PASS: admin.pass,
   };
-  if (llm.provider === 'openai' && llm.apiKey) envValues.OPENAI_API_KEY = llm.apiKey;
-  if (llm.provider === 'anthropic' && llm.apiKey) envValues.ANTHROPIC_API_KEY = llm.apiKey;
-  if (llm.provider === 'openrouter' && llm.apiKey) envValues.OPENROUTER_API_KEY = llm.apiKey;
+  if (llm.provider && llm.apiKey && llm.provider in CLOUD_ENV_VAR) {
+    envValues[CLOUD_ENV_VAR[llm.provider as CloudProvider]] = llm.apiKey;
+  }
   writeEnvFile(CONTROLLER_ENV, envValues, { templateFallback: CONTROLLER_ENV_EXAMPLE });
   ok(`wrote ${pc.dim('controller/.env')} (${Object.keys(envValues).length} keys)`);
 
@@ -309,18 +330,37 @@ async function collectNavidrome(): Promise<NavidromeCreds> {
   return { url, user, pass };
 }
 
+// The provider picker — same eight providers the admin Settings UI offers,
+// in the same order, plus an explicit "configure later" escape hatch.
+const LLM_PROVIDER_OPTIONS: Array<{ value: LlmProvider | 'later'; label: string; hint: string }> = [
+  { value: 'ollama',            label: 'Ollama — local homelab',          hint: 'no API key — point at your homelab box' },
+  { value: 'openai-compatible', label: 'OpenAI-compatible — self-hosted',  hint: 'llama.cpp, vLLM, LM Studio — your own server URL' },
+  { value: 'anthropic',         label: 'Anthropic — Claude',               hint: 'needs ANTHROPIC_API_KEY' },
+  { value: 'openai',            label: 'OpenAI — GPT',                     hint: 'needs OPENAI_API_KEY' },
+  { value: 'google',            label: 'Google — Gemini',                  hint: 'needs GOOGLE_GENERATIVE_AI_API_KEY' },
+  { value: 'deepseek',          label: 'DeepSeek',                         hint: 'needs DEEPSEEK_API_KEY' },
+  { value: 'openrouter',        label: 'OpenRouter — multi-vendor',        hint: 'needs OPENROUTER_API_KEY' },
+  { value: 'gateway',           label: 'Vercel AI Gateway — multi-vendor', hint: 'needs AI_GATEWAY_API_KEY' },
+  { value: 'later',             label: 'Other / configure later',          hint: 'set it up in the admin UI' },
+];
+
+// Example model ids — placeholder hints only, not defaults.
+const EXAMPLE_MODEL: Record<Exclude<LlmProvider, 'ollama'>, string> = {
+  'openai-compatible': 'qwen3',
+  anthropic: 'claude-sonnet-4-5',
+  openai: 'gpt-4o-mini',
+  google: 'gemini-2.5-flash',
+  deepseek: 'deepseek-v4-flash',
+  openrouter: 'anthropic/claude-sonnet-4-5',
+  gateway: 'anthropic/claude-sonnet-4-5',
+};
+
 async function collectLlm(): Promise<LlmChoice> {
   header('LLM provider');
-  const choice = exitIfCancelled(await p.select<'ollama' | 'openai' | 'anthropic' | 'openrouter' | 'later'>({
+  const choice = exitIfCancelled(await p.select<LlmProvider | 'later'>({
     message: 'Which LLM should the AI DJ talk to?',
     initialValue: 'ollama',
-    options: [
-      { value: 'ollama',     label: 'Ollama (local)', hint: 'no API key — point at your homelab' },
-      { value: 'openai',     label: 'OpenAI',         hint: 'gpt-4o-mini etc. — needs OPENAI_API_KEY' },
-      { value: 'anthropic',  label: 'Anthropic',      hint: 'Claude — needs ANTHROPIC_API_KEY' },
-      { value: 'openrouter', label: 'OpenRouter',     hint: 'mix of providers — needs OPENROUTER_API_KEY' },
-      { value: 'later',      label: 'Other / configure later', hint: 'set it up in the admin UI' },
-    ],
+    options: LLM_PROVIDER_OPTIONS,
   }), { backOnCancel: false });
 
   if (choice === 'later') return { provider: null };
@@ -341,25 +381,51 @@ async function collectLlm(): Promise<LlmChoice> {
     return { provider: 'ollama', ollamaUrl: url, ollamaModel: model };
   }
 
-  // Cloud branch (openai / anthropic / openrouter)
+  if (choice === 'openai-compatible') {
+    const baseUrl = exitIfCancelled(await p.text({
+      message: 'Server base URL (include the /v1 suffix)',
+      placeholder: 'http://localhost:8080/v1',
+      validate: (v: string) =>
+        !v ? 'required' : !/^https?:\/\//.test(v) ? 'must start with http(s)://' : undefined,
+    }), { backOnCancel: false });
+    const model = exitIfCancelled(await p.text({
+      message: 'Model id',
+      placeholder: EXAMPLE_MODEL['openai-compatible'],
+      validate: (v: string) => (!v ? 'required' : undefined),
+    }), { backOnCancel: false });
+    const apiKey = exitIfCancelled(await p.password({
+      message: 'API key (optional — many self-hosted servers need none)',
+      mask: '*',
+    }), { backOnCancel: false });
+    return { provider: 'openai-compatible', baseUrl, model, apiKey: apiKey || undefined };
+  }
+
+  // Cloud branch — choice is now narrowed to CloudProvider.
+  const provider = choice;
+  const label = (LLM_PROVIDER_OPTIONS.find((o) => o.value === provider)?.label ?? provider)
+    .split(' — ')[0] as string;
   const apiKey = exitIfCancelled(await p.password({
-    message: `${labelForProvider(choice)} API key`,
+    message: `${label} API key`,
     mask: '*',
   }), { backOnCancel: false });
+  const model = exitIfCancelled(await p.text({
+    message: 'Model id (enter to choose later in the admin UI)',
+    placeholder: EXAMPLE_MODEL[provider],
+  }), { backOnCancel: false });
   if (!apiKey) {
-    warn('No key provided — saving the provider choice but you will need to add the key later.');
-    return { provider: choice, apiKey: '' };
+    warn('No key provided — saving the provider choice; add the key later in controller/.env or the admin UI.');
+  } else {
+    await maybeProbeCloud(provider, label, apiKey);
   }
-  await reportProbe(labelForProvider(choice), () => {
-    if (choice === 'openai') return probeOpenAI({ apiKey });
-    if (choice === 'anthropic') return probeAnthropic({ apiKey });
-    return probeOpenRouter({ apiKey });
-  });
-  return { provider: choice, apiKey };
+  return { provider, apiKey: apiKey || undefined, model: model || undefined };
 }
 
-function labelForProvider(p: 'openai' | 'anthropic' | 'openrouter'): string {
-  return p === 'openai' ? 'OpenAI' : p === 'anthropic' ? 'Anthropic' : 'OpenRouter';
+// Probe the cloud providers we ship a probe for; google / deepseek / gateway
+// have none, so their key is first exercised on the controller's first DJ call.
+async function maybeProbeCloud(provider: CloudProvider, label: string, apiKey: string): Promise<void> {
+  if (provider === 'openai') return reportProbe(label, () => probeOpenAI({ apiKey }));
+  if (provider === 'anthropic') return reportProbe(label, () => probeAnthropic({ apiKey }));
+  if (provider === 'openrouter') return reportProbe(label, () => probeOpenRouter({ apiKey }));
 }
 
 interface AdminCreds { user: string; pass: string; }
@@ -454,10 +520,17 @@ async function applyLlmSetting(env: ComposeEnv, llm: LlmChoice): Promise<void> {
   if (llm.provider === 'ollama') {
     if (llm.ollamaUrl) body.llm.ollamaUrl = llm.ollamaUrl;
     if (llm.ollamaModel) body.llm.model = llm.ollamaModel;
+  } else if (llm.provider === 'openai-compatible') {
+    // openai-compatible has no env var — the server URL and (optional) key
+    // both live in settings, alongside the model id.
+    if (llm.baseUrl) body.llm.baseUrl = llm.baseUrl;
+    if (llm.model) body.llm.model = llm.model;
+    if (llm.apiKey) body.llm.apiKey = llm.apiKey;
+  } else if (llm.model) {
+    // Cloud providers: the API key is in controller/.env and the AI SDK reads
+    // <PROVIDER>_API_KEY automatically — we only carry the model id here.
+    body.llm.model = llm.model;
   }
-  // For cloud providers we deliberately leave llm.apiKey empty — the AI SDK
-  // reads <PROVIDER>_API_KEY from env automatically. Storing the key in
-  // settings.json on top of the env var would be redundant + leak-prone.
 
   const res = await client.post('/settings', body, { admin: true, timeoutMs: 5000 });
   if (res.ok) {

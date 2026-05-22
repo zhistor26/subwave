@@ -19,6 +19,9 @@ Usage:
   subwave stop             docker compose down (with confirmation)
   subwave restart [svc]    rebuild / restart a service
   subwave logs [svc|all]   tail docker compose logs
+  subwave play [dev|prod]  open the terminal player (TUI)
+  subwave listen [dev|prod] open the web player in a browser
+  subwave admin [dev|prod] open the admin console in a browser
 
   subwave help             show this message
   subwave --version        print version
@@ -104,6 +107,27 @@ async function main(): Promise<void> {
       const { runLogsCommand } = await import('./commands/logs.ts');
       const service = rest[0];
       await runLogsCommand({ service });
+      return;
+    }
+    case 'play': {
+      const { runPlayCommand } = await import('./commands/play.ts');
+      const envArg = rest[0];
+      if (envArg && envArg !== 'dev' && envArg !== 'prod') {
+        process.stderr.write(`Unknown env: ${envArg}. Expected 'dev' or 'prod'.\n`);
+        process.exit(2);
+      }
+      await runPlayCommand({ envArg: envArg as 'dev' | 'prod' | undefined });
+      return;
+    }
+    case 'listen':
+    case 'admin': {
+      const { runOpenWebCommand } = await import('./commands/open-web.ts');
+      const envArg = rest[0];
+      if (envArg && envArg !== 'dev' && envArg !== 'prod') {
+        process.stderr.write(`Unknown env: ${envArg}. Expected 'dev' or 'prod'.\n`);
+        process.exit(2);
+      }
+      await runOpenWebCommand(cmd, { envArg: envArg as 'dev' | 'prod' | undefined });
       return;
     }
     default:

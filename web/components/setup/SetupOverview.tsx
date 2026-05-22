@@ -1,24 +1,22 @@
 import Link from 'next/link';
 import SetupPage from './SetupPage';
+import CodeBlock from './CodeBlock';
 
 const PATHS = [
   {
     href: '/setup/quick-start',
     label: 'Quick Start',
-    blurb:
-      'The interactive wizard, or one sentence to your AI coding agent. Pick this if you just want it running.',
+    blurb: 'The interactive wizard, or one sentence to your AI coding agent.',
   },
   {
     href: '/setup/manual',
     label: 'Manual Install',
-    blurb:
-      'The same outcome, command by command. Pick this if you script your installs or want a non-standard layout.',
+    blurb: 'The same outcome, command by command, for scripted or non-standard installs.',
   },
   {
     href: '/setup/development',
     label: 'Development',
-    blurb:
-      'Hacking on SUB/WAVE itself — the two compose files, hot reload, and the one rebuild gotcha.',
+    blurb: 'Hacking on SUB/WAVE itself — the two compose files and hot reload.',
   },
 ];
 
@@ -27,16 +25,50 @@ export default function SetupOverview() {
     <SetupPage
       eyebrow="SELF-HOSTED · OPEN SOURCE"
       title="Run your own SUB/WAVE."
+      meta="≈ 10 min · 4 commands · needs Navidrome + an LLM"
       intro="SUB/WAVE points at your Navidrome library and your LLM — a local Ollama box by default, or any hosted provider you prefer. Once it's running, the AI DJ broadcasts from your homelab, plays from your music collection, and answers requests from anyone with the URL."
       current="/setup"
+      heroAside={
+        <div className="bs-dj-glyph" aria-hidden="true">
+          <div className="bs-dj-vinyl" />
+        </div>
+      }
     >
       <section className="bs-section">
-        <p className="bs-eyebrow">WHAT'S INSIDE</p>
-        <h2>Two ways to install, one way to hack.</h2>
+        <div className="bs-faststart">
+          <p className="bs-eyebrow">THE FAST PATH</p>
+          <p>
+            Already have Docker, Node 20+, Navidrome, and an LLM reachable? It's
+            four commands — the wizard handles the rest.
+          </p>
+          <CodeBlock>{`git clone https://github.com/perminder-klair/subwave.git
+cd subwave
+npm install
+npm run setup`}</CodeBlock>
+          <p className="text-muted">
+            The wizard asks <em>dev or production?</em>, prompts for Navidrome and
+            Ollama, boots the stack, and renders the station jingles.{' '}
+            <Link href="/setup/quick-start" className="bs-link">
+              Full walkthrough →
+            </Link>
+          </p>
+          <p className="text-muted">
+            Once it's running, <code className="bs-code-inline">npm start</code> opens
+            the operator console — a menu for stack status, a diagnostic sweep, logs,
+            restart, and the terminal player.
+          </p>
+        </div>
+      </section>
+
+      <section className="bs-section">
+        <p className="bs-eyebrow">IF YOU'RE NEW HERE</p>
+        <h2>Start at Prerequisites.</h2>
         <p>
-          Start at <Link href="/setup/prerequisites" className="bs-link">Prerequisites</Link> —
-          SUB/WAVE talks to your existing services, so a couple of things need to be running
-          first. Then pick whichever install path suits you. They land at the same place.
+          SUB/WAVE talks to services it doesn't ship, so a couple of things need
+          to be running first.{' '}
+          <Link href="/setup/prerequisites" className="bs-link">Prerequisites</Link>{' '}
+          covers them, then pick whichever install path suits you — they all land
+          at the same place:
         </p>
         <ul className="bs-list">
           {PATHS.map((p) => (
@@ -48,21 +80,10 @@ export default function SetupOverview() {
             </li>
           ))}
         </ul>
-      </section>
-
-      <section className="bs-section">
-        <p className="bs-eyebrow">HOW LONG IT TAKES</p>
-        <h2>About ten minutes.</h2>
-        <p>
-          If you already have Navidrome and an LLM running, the wizard gets you on the air in
-          roughly ten minutes — most of it spent answering a handful of prompts and waiting on
-          the first Docker build. The bulk of the work is the things SUB/WAVE depends on but
-          doesn't ship, which is exactly what the next page covers.
-        </p>
         <p>
           Just want to <em>listen</em> to a station, not run one?{' '}
-          <Link href="/manual" className="bs-link">The manual</Link> covers tuning in and
-          making requests.
+          <Link href="/manual" className="bs-link">The manual</Link> covers tuning
+          in and making requests.
         </p>
       </section>
     </SetupPage>

@@ -19,8 +19,11 @@ export default function CodeBlock({ children, lang }: CodeBlockProps) {
     } catch {}
   };
 
+  const label = (lang || 'sh').toUpperCase();
+
   return (
     <pre className="bs-code" data-lang={lang || 'sh'}>
+      <span className="bs-code-lang" aria-hidden="true">{label}</span>
       <button
         type="button"
         className="bs-copy"

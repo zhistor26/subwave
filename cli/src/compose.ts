@@ -125,6 +125,20 @@ export function apiBaseFor(env: ComposeEnv): string {
   return 'http://localhost:7701';
 }
 
+// Icecast stream URL for the given env. Prod serves /stream.mp3 through the
+// Caddy edge on :4800; dev exposes Icecast directly on its mapped port.
+export function streamUrlFor(env: ComposeEnv): string {
+  if (env === 'prod') return 'http://localhost:4800/stream.mp3';
+  return 'http://localhost:7702/stream.mp3';
+}
+
+// Browser base URL for the web UI, by env. Prod serves the UI through the
+// Caddy edge on :4800; dev runs the Next.js dev server on :7700.
+export function webBaseFor(env: ComposeEnv): string {
+  if (env === 'prod') return 'http://localhost:4800';
+  return 'http://localhost:7700';
+}
+
 // All declared services for a compose file — used when the operator wants
 // to pick "any" service even if some aren't running.
 export function listDeclaredServices(file: ComposeFile): string[] {

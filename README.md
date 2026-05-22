@@ -134,20 +134,23 @@ homelab default is a local **Ollama** box (no API key needed). Configure
 Navidrome credentials in `controller/.env` and the LLM provider in the admin
 Settings UI.
 
-The interactive setup CLI (`npx subwave` / `node bin/subwave`) walks through
-first-boot configuration. After setup it doubles as an operator console —
-run `subwave` with no arguments for a menu, or use any of the subcommands
-directly:
+The operator CLI walks through first-boot configuration and then doubles as
+the console for running the station. Run `npm start` for a status-aware menu;
+every menu action is also a one-shot subcommand — append it after
+`npm start --`:
 
 ```bash
-subwave                 # interactive menu (status-aware)
-subwave status          # quick: compose env, services, now-playing, recent events
-subwave doctor          # full diagnostic sweep
-subwave start dev       # docker compose up -d (dev or prod)
-subwave restart liquidsoap   # plain restart (radio.liq is bind-mounted)
-subwave restart controller   # rebuild + recreate (source is COPY-d at build)
-subwave logs controller      # tail one service
-subwave stop                 # docker compose down (confirms first)
+npm start                       # interactive operator console (status-aware menu)
+npm start -- status             # compose env, services, now-playing, recent events
+npm start -- doctor             # full diagnostic sweep
+npm start -- start dev          # docker compose up -d (dev or prod)
+npm start -- restart liquidsoap # plain restart (radio.liq is bind-mounted)
+npm start -- restart controller # rebuild + recreate (source is COPY-d at build)
+npm start -- logs controller    # tail one service
+npm start -- play               # SUB/WAVE TUI — the terminal player
+npm start -- listen             # open the web player in a browser
+npm start -- admin              # open the admin console in a browser
+npm start -- stop               # docker compose down (confirms first)
 ```
 
 ## Production deploy
@@ -175,11 +178,12 @@ controller/        Node.js controller — the AI DJ brain
   src/routes/      HTTP API split by surface (public, request, settings, …)
 liquidsoap/        radio.liq — the Liquidsoap mixing pipeline
 web/               Next.js 15 web UI (player, landing, admin, setup)
+tui/               Terminal player — the listener UI, in your terminal
 docker/            Two compose files (dev + prod), Caddyfile, Dockerfiles
 scripts/           setup, jingle generation, update, health check
 mcp-subwave/       MCP server — lets an agent request songs / drive the DJ
 cli/               Operator CLI (TS, run via tsx loader — no build step)
-bin/subwave        Operator CLI entry — menu + setup, status, doctor, lifecycle
+bin/subwave        Operator CLI entry — setup, status, doctor, lifecycle, play
 ```
 
 ## Notable details

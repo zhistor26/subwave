@@ -33,7 +33,7 @@ function Keys({ keys }: { keys: string[] }) {
 export default function Shortcuts() {
   return (
     <ManualPage
-      eyebrow="MANUAL · 03"
+      eyebrow="MANUAL · 04"
       title="Keyboard shortcuts."
       intro="The player can be driven entirely from the keyboard — tune in, change the volume, open the panels, and switch themes without reaching for the mouse."
       current="/manual/shortcuts"

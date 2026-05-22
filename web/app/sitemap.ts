@@ -13,6 +13,7 @@ const ROUTES = [
   '/manual/dj',
   '/manual/admin',
   '/manual/shortcuts',
+  '/manual/cli',
   '/manual/llm',
   '/manual/mcp',
   '/manual/clients',

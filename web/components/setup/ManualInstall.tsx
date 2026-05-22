@@ -2,31 +2,17 @@ import Link from 'next/link';
 import SetupPage from './SetupPage';
 import CodeBlock from './CodeBlock';
 
-const ENV_TEMPLATE = `# controller/.env — point SUB/WAVE at your services
+const ENV_TEMPLATE = `# controller/.env — the keys you must set
 
 # Navidrome (or any Subsonic-API server)
 NAVIDROME_URL=http://navidrome.local:4533
 NAVIDROME_USER=your-username
 NAVIDROME_PASS=your-password
 
-# (Optional) If the controller can read your music files directly from
-# disk, set this to the mount path — skips streaming over HTTP.
-# MUSIC_LIBRARY_PATH=/music
-
-# LLM — the active provider + model are chosen in the admin Settings UI,
-# not here. Ollama (the homelab default) needs no key. Only set a cloud
-# key below if you switch to a hosted provider in Settings.
-# ANTHROPIC_API_KEY=
-# OPENAI_API_KEY=
-# OPENROUTER_API_KEY=
-# DEEPSEEK_API_KEY=
-# ELEVENLABS_API_KEY=     # only for the 'cloud' TTS voice
-
-# Icecast source password (any string; just match the docker-compose env)
+# Icecast source password (match the docker-compose env)
 ICECAST_SOURCE_PASSWORD=replace-me-with-a-strong-string
 
-# Admin auth — gates the /admin console. REQUIRED in production (the
-# controller refuses to boot without it); optional for local dev.
+# Admin auth — gates /admin. REQUIRED in production.
 ADMIN_USER=admin
 ADMIN_PASS=replace-me`;
 
@@ -63,10 +49,34 @@ cd subwave`}</CodeBlock>
             <CodeBlock>{`cp controller/.env.example controller/.env
 $EDITOR controller/.env`}</CodeBlock>
             <p>
-              The values that actually matter — the rest of the template has good defaults.
-              The LLM provider and model are chosen later, in the admin Settings UI, not here:
+              Only these keys need a value — the rest of the template has good defaults:
             </p>
             <CodeBlock lang="env">{ENV_TEMPLATE}</CodeBlock>
+            <div className="bs-callout">
+              <div className="bs-eyebrow">OPTIONAL KEYS</div>
+              <p>
+                The template ships a few more, all commented out — leave them be
+                unless you need them:
+              </p>
+              <ul className="bs-list">
+                <li>
+                  <code className="bs-code-inline">MUSIC_LIBRARY_PATH</code> — a mount
+                  path if the controller can read your music files directly from disk,
+                  skipping the HTTP stream.
+                </li>
+                <li>
+                  <code className="bs-code-inline">ANTHROPIC_API_KEY</code> /{' '}
+                  <code className="bs-code-inline">OPENAI_API_KEY</code> /{' '}
+                  <code className="bs-code-inline">OPENROUTER_API_KEY</code> /{' '}
+                  <code className="bs-code-inline">DEEPSEEK_API_KEY</code> — only if you
+                  switch off the default Ollama provider in the admin Settings UI.
+                </li>
+                <li>
+                  <code className="bs-code-inline">ELEVENLABS_API_KEY</code> — only for
+                  the <code className="bs-code-inline">cloud</code> TTS voice.
+                </li>
+              </ul>
+            </div>
             <div className="bs-callout">
               <div className="bs-eyebrow">CONNECTION TEST</div>
               <p>Before booting the stack, sanity-check Navidrome from your terminal:</p>
@@ -160,6 +170,14 @@ $EDITOR controller/.env`}</CodeBlock>
               Auto-detects which compose file is live and which host port Caddy is mapped to.
               Exits 0 if healthy. Safe to wire into cron or a status page.
             </p>
+            <div className="bs-callout">
+              <div className="bs-eyebrow">OR USE THE OPERATOR CONSOLE</div>
+              <p>
+                <code className="bs-code-inline">npm start</code> opens the operator console
+                — a menu for stack status, a diagnostic sweep, logs, restart, and the terminal
+                player. It's the day-to-day way to run the station once it's installed.
+              </p>
+            </div>
           </div>
         </div>
       </section>

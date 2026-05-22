@@ -10,11 +10,12 @@ export const MANUAL_PAGES: ManualPageEntry[] = [
   { href: '/manual', label: 'Overview' },
   { href: '/manual/getting-started', label: 'Getting Started' },
   { href: '/manual/requests', label: 'Making Requests' },
+  { href: '/manual/clients', label: 'Listen With' },
   { href: '/manual/shortcuts', label: 'Keyboard Shortcuts' },
   { href: '/manual/dj', label: 'How the DJ Works' },
   { href: '/manual/admin', label: 'Admin & Settings' },
+  { href: '/manual/cli', label: 'The Operator CLI' },
   { href: '/manual/llm', label: 'Models & Tokens' },
   { href: '/manual/mcp', label: 'Agent Access' },
-  { href: '/manual/clients', label: 'Listen With' },
   { href: '/manual/faq', label: 'FAQ' },
 ];
