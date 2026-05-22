@@ -192,8 +192,6 @@ bin/subwave        Operator CLI entry — setup, status, doctor, lifecycle, play
 
 ## Notable details
 
-- **No test runner, linter, or formatter** is configured. Match the style of
-  the surrounding code.
 - **Controller code needs a rebuild, not a restart** — its source is `COPY`d at
   image build time. `radio.liq` is bind-mounted, so a Liquidsoap restart is
   enough after editing it.
