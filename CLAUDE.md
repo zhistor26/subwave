@@ -29,12 +29,13 @@ There is no `/skip` endpoint — track-end is the only natural transition. Liqui
 
 **Compose files live at the repo root**, not under `docker/`. Run `docker compose ...` from the repo root; the legacy `cd docker && docker compose ...` pattern is gone (one root `.env` is all the configuration surface there is for boot — everything else lives in `state/settings.json` and is managed by the wizard + admin UI).
 
-**Controller source needs a rebuild, not a restart.** `controller` `COPY`s its source at build time, so `docker compose restart controller` reruns the *same baked-in code*. `liquidsoap` is different in dev: `radio.liq` is bind-mounted (`./liquidsoap/radio.liq:/etc/liquidsoap/radio.liq:ro` in the dev compose only), so editing it only needs a restart. In **prod**, `radio.liq` is baked into the image, so editing it requires a rebuild + recreate just like the controller.
+**Dev controller hot-reloads; prod controller needs a rebuild.** In the dev compose, `controller/src/` and `controller/scripts/` are bind-mounted into the container and the command is overridden to `tsx watch`, so edits restart the process in-place — no `docker compose build`. In **prod** the controller image `COPY`s source at build time, so `docker compose restart controller` reruns the *same baked-in code* and any change needs `up -d --build controller`. `liquidsoap` mirrors this split: `radio.liq` is bind-mounted in the dev compose only, so dev edits just need a restart; prod bakes it into the image and needs a rebuild + recreate.
 
 ```bash
-docker compose up -d --build controller     # after any controller/src/** change (dev or prod)
+docker compose restart controller           # rarely needed in dev — tsx watch handles src/** edits
+docker compose -f docker-compose.prod.yml up -d --build controller  # after controller/src/** in PROD
 docker compose restart liquidsoap           # after radio.liq edits in DEV — bind-mounted, no rebuild
-docker compose up -d --build liquidsoap     # after radio.liq edits in PROD — image is baked
+docker compose -f docker-compose.prod.yml up -d --build liquidsoap  # after radio.liq edits in PROD
 ```
 
 `web` is a Next.js dev server in local mode (`npm run dev`), so it hot-reloads — no rebuild needed for UI changes during dev. Production builds the web image; treat it like the others there.

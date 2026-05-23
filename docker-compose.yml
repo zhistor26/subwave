@@ -96,7 +96,18 @@ services:
       - ./.env
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Dev mode runs the controller under `tsx watch` against bind-mounted
+    # source, so edits to controller/src/** restart the process inside the
+    # container without a `docker compose build`. node_modules stays baked
+    # into the image — we override src/ and scripts/ only. Prod composes
+    # use the image's default CMD (`tsx src/server.ts`, no watch).
+    command: ["node_modules/.bin/tsx", "watch", "src/server.ts"]
     volumes:
       # State + sounds are bind-mounted in dev so changes don't need rebuilds.
       - *state-mount
       - ./sounds:/sounds:ro
+      # Source bind-mounts for hot reload. `tsx watch` picks up changes via
+      # inotify. Don't mount the whole controller/ dir — that would shadow
+      # /app/node_modules with the (possibly empty) host node_modules.
+      - ./controller/src:/app/src
+      - ./controller/scripts:/app/scripts
