@@ -8,12 +8,15 @@
 #   3. Generates docker/.env with random Icecast passwords if missing
 #   4. Generates controller/.env from controller/.env.example if missing
 #   5. Syncs ICECAST_SOURCE_PASSWORD between docker/.env and controller/.env
-#   6. Renders state/icecast.xml from docker/icecast.xml.template using the
+#   6. Generates web/.env.local pointing at the dev controller (7701) and
+#      Icecast (7702) — only needed for native `npm run dev`; the production
+#      Docker image uses same-origin defaults via Caddy and ignores this file
+#   7. Renders state/icecast.xml from docker/icecast.xml.template using the
 #      passwords above (mounted read-only by both compose files)
-#   7. Renders 30 s of low pink noise as sounds/emergency.mp3 (last-resort
+#   8. Renders 30 s of low pink noise as sounds/emergency.mp3 (last-resort
 #      fallback) — ffmpeg is borrowed from the Liquidsoap image, no host
 #      install required
-#   8. Touches auto.m3u and jingles.m3u so Liquidsoap's reload_mode="watch"
+#   9. Touches auto.m3u and jingles.m3u so Liquidsoap's reload_mode="watch"
 #      has something to watch on first boot
 
 set -euo pipefail
@@ -92,7 +95,23 @@ if [[ -f "$CONTROLLER_ENV" ]]; then
   fi
 fi
 
-# ---- 4. Render icecast.xml --------------------------------------------------
+# ---- 4. web/.env.local for native dev (`npm run dev` on port 7700) ---------
+# Production runs web inside the Docker image behind Caddy, where /api and
+# /stream.mp3 are same-origin — no env file needed. Native dev runs Next.js
+# on the host on 7700 and must be told where the controller (7701) and
+# Icecast (7702) live, otherwise every /api/* request 404s on the dev server.
+WEB_ENV_LOCAL="$REPO_DIR/web/.env.local"
+if [[ ! -f "$WEB_ENV_LOCAL" ]]; then
+  say "Generating $WEB_ENV_LOCAL for native dev"
+  cat > "$WEB_ENV_LOCAL" <<EOF
+NEXT_PUBLIC_API_URL=http://localhost:7701
+NEXT_PUBLIC_STREAM_URL=http://localhost:7702/stream.mp3
+EOF
+else
+  say "$WEB_ENV_LOCAL exists — leaving it alone"
+fi
+
+# ---- 5. Render icecast.xml --------------------------------------------------
 if [[ ! -f "$ICECAST_TEMPLATE" ]]; then
   warn "Missing $ICECAST_TEMPLATE — cannot render Icecast config"
   exit 1
@@ -114,7 +133,7 @@ else
 fi
 chmod 644 "$ICECAST_RENDERED"
 
-# ---- 5. Emergency audio -----------------------------------------------------
+# ---- 6. Emergency audio -----------------------------------------------------
 mkdir -p "$SOUNDS_DIR"
 if [[ ! -f "$SOUNDS_DIR/emergency.mp3" ]]; then
   if command -v docker &>/dev/null; then
@@ -128,7 +147,7 @@ if [[ ! -f "$SOUNDS_DIR/emergency.mp3" ]]; then
   fi
 fi
 
-# ---- 6. Studio bed ----------------------------------------------------------
+# ---- 7. Studio bed ----------------------------------------------------------
 # Continuous low-level ambient loop that Liquidsoap mixes under the broadcast.
 # Masked by music, audible under ducked music when the DJ talks solo. Replace
 # sounds/bed.mp3 with your own ambient loop any time.
