@@ -360,7 +360,11 @@ async function collectNavidrome(): Promise<NavidromeCreds> {
   const sc = readSetupConfig().navidrome || {};
   const rootEnv = parseEnvFile(ROOT_ENV);
   const legacy = parseEnvFile(LEGACY_CONTROLLER_ENV);
-  let url = rootEnv.NAVIDROME_URL || sc.url || legacy.NAVIDROME_URL || 'http://host.docker.internal:4533';
+  // The default URL reads natural in the prompt (matches what most operators
+  // type), but the controller runs in Docker so a loopback URL won't resolve
+  // to anything useful at runtime. We handle that with a post-probe swap
+  // prompt below — see the LOOPBACK_RE block.
+  let url = rootEnv.NAVIDROME_URL || sc.url || legacy.NAVIDROME_URL || 'http://localhost:4533';
   let user = rootEnv.NAVIDROME_USER || sc.user || legacy.NAVIDROME_USER || '';
   let pass = rootEnv.NAVIDROME_PASS || sc.pass || legacy.NAVIDROME_PASS || '';
 
@@ -405,6 +409,32 @@ async function collectNavidrome(): Promise<NavidromeCreds> {
     if (next === 'abort') process.exit(1);
     // retry: loop
   }
+
+  // Loopback hostnames (localhost / 127.0.0.1 / 0.0.0.0 / ::1) don't resolve
+  // to the host from inside the controller container — they resolve to the
+  // container itself. The compose files wire host.docker.internal to the host
+  // gateway via `extra_hosts`, so swap the hostname now rather than letting
+  // the controller fail every Subsonic call until the operator notices.
+  const loopbackMatch = url.match(/^(https?:\/\/)(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|\/|$)/i);
+  if (loopbackMatch) {
+    const swapped = url.replace(loopbackMatch[2] as string, 'host.docker.internal');
+    warn(
+      `${url} points at your host's loopback. The controller runs in Docker, so this URL would resolve to the controller container itself rather than Navidrome on your host.`,
+    );
+    const ok = exitIfCancelled(await p.confirm({
+      message: `Save as ${swapped} so the container can reach it?`,
+      initialValue: true,
+    }), { backOnCancel: false });
+    if (ok) {
+      url = swapped;
+      muted(`using ${url}`);
+    } else {
+      warn(
+        `Keeping ${url} — the controller will fail to reach Navidrome unless you have a custom routing setup (e.g. host network mode).`,
+      );
+    }
+  }
+
   return { url, user, pass };
 }
 
