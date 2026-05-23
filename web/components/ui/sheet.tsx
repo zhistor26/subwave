@@ -13,7 +13,8 @@ export interface SheetProps {
 }
 
 /* V3 Sheet — right-side drawer between the top and bottom bars (offset 80px
-   each), 460px wide, cream background, 1px ink borders, animates in from the
+   each), 460px wide, glassy cream wash over a backdrop-filter blur so the
+   center-stage art bleeds through, 1px ink borders, animates in from the
    right via v3-drawer-content keyframe in globals.css. No exit animation.
    When `container` is supplied the drawer is scoped to that element (used
    for the embedded player on the landing page); otherwise it covers the
@@ -29,7 +30,10 @@ export function Sheet({ open, onOpenChange, title, children, container }: SheetP
         />
         <Dialog.Content
           className={cn(
-            'v3-drawer-content z-50 flex flex-col border-x border-ink bg-bg text-ink shadow-drawer',
+            'v3-drawer-content z-50 flex flex-col border-x border-ink text-ink shadow-drawer',
+            'bg-[color-mix(in_oklab,var(--bg)_55%,transparent)]',
+            '[backdrop-filter:blur(14px)_saturate(1.6)_brightness(1.04)]',
+            '[-webkit-backdrop-filter:blur(14px)_saturate(1.6)_brightness(1.04)]',
             pos,
             contained
               ? 'top-16 right-4 bottom-16 w-[min(420px,calc(100%-32px))]'
