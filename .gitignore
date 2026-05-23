@@ -12,6 +12,8 @@ out/
 
 # TypeScript
 web/tsconfig.tsbuildinfo
+controller/tsconfig.tsbuildinfo
+cli/tsconfig.tsbuildinfo
 
 # Runtime state — file-based IPC, TTS output, archives, logs
 state/voice/
@@ -27,6 +29,9 @@ state/say.txt
 state/intro.txt
 state/now-playing.json
 state/icecast.xml
+state/icecast-secrets.env
+state/setup-config.json
+state/secrets.env
 state/jingles.json
 state/moods.json
 state/settings.json

@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
 import { detectCompose, isProdEnv, streamUrlFor, type ComposeStatus } from './compose.ts';
 import { dockerDaemonOk, composeExec } from './docker.ts';
 import { makeClient } from './api.ts';
-import { CONTROLLER_ENV, parseEnvFile, REPO_ROOT, STATE_DIR, fetchErrorReason } from './util.ts';
+import { LEGACY_CONTROLLER_ENV, ROOT_ENV, parseEnvFile, REPO_ROOT, STATE_DIR, fetchErrorReason } from './util.ts';
 import { whoHolds7700, readWebDevPid, WEB_DEV_LOG, isWebDevCommand } from './web-dev.ts';
 
 export type Status = 'ok' | 'warn' | 'fail' | 'skip';
@@ -179,21 +179,27 @@ async function checkController(compose: ComposeStatus): Promise<Finding[]> {
   }
 
   // Admin creds. Required in prod (controller exits without them); just a
-  // warn in dev (auth is optional there).
-  const env = parseEnvFile(CONTROLLER_ENV);
-  const hasCreds = Boolean(env.ADMIN_USER && env.ADMIN_PASS);
+  // warn in dev (auth is optional there). Root .env is the source of truth;
+  // we also check the legacy controller/.env so an upgrader with old config
+  // doesn't get a confusing "missing" warning while their stack is still up.
+  const rootEnv = parseEnvFile(ROOT_ENV);
+  const legacyEnv = parseEnvFile(LEGACY_CONTROLLER_ENV);
+  const credSource =
+    rootEnv.ADMIN_USER && rootEnv.ADMIN_PASS ? '.env' :
+    legacyEnv.ADMIN_USER && legacyEnv.ADMIN_PASS ? 'controller/.env (legacy)' : null;
+  const hasCreds = Boolean(credSource);
   if (isProdEnv(compose.env)) {
     out.push({
       label: 'admin creds',
       status: hasCreds ? 'ok' : 'fail',
-      detail: hasCreds ? 'present in controller/.env' : 'missing — prod requires ADMIN_USER + ADMIN_PASS',
-      hint: hasCreds ? undefined : 'Set ADMIN_USER/ADMIN_PASS in controller/.env, then restart controller.',
+      detail: hasCreds ? `present in ${credSource}` : 'missing — prod requires ADMIN_USER + ADMIN_PASS',
+      hint: hasCreds ? undefined : 'Set ADMIN_USER/ADMIN_PASS in the root .env, then restart controller.',
     });
   } else {
     out.push({
       label: 'admin creds',
       status: hasCreds ? 'ok' : 'warn',
-      detail: hasCreds ? 'present in controller/.env' : 'absent (optional in dev)',
+      detail: hasCreds ? `present in ${credSource}` : 'absent (optional in dev)',
     });
   }
 
@@ -334,7 +340,7 @@ function checkState(): Finding[] {
       label: 'state/',
       status: 'fail',
       detail: 'missing',
-      hint: 'Run `subwave setup` to create state dirs and write controller/.env.',
+      hint: 'Run `subwave setup` to create state dirs and write the root .env.',
     });
     return out;
   }

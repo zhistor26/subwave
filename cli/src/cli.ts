@@ -1,10 +1,10 @@
 // SUB/WAVE operator CLI entry point. Parses argv, dispatches to a
 // command, or falls back to the interactive menu when no command is
-// given. First-run detection — if controller/.env doesn't exist, run
-// `setup` regardless of the argument.
+// given. First-run detection — if neither the root .env nor the legacy
+// controller/.env exists, run `setup` regardless of the argument.
 
 import { existsSync } from 'node:fs';
-import { CONTROLLER_ENV } from './util.ts';
+import { LEGACY_CONTROLLER_ENV, ROOT_ENV } from './util.ts';
 import { runSetupCommand } from './commands/setup.ts';
 
 const HELP = `
@@ -52,11 +52,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  // First-run: if there's no controller/.env we can't do anything else
-  // meaningful, so push the operator into setup. Exception: `help` / version
-  // checked above, and explicit `setup` falls through naturally.
-  if (!existsSync(CONTROLLER_ENV) && cmd !== 'setup') {
-    process.stderr.write('No controller/.env found — running setup wizard first.\n\n');
+  // First-run: if neither the root .env nor the legacy controller/.env exists
+  // we can't do anything else meaningful, so push the operator into setup.
+  // Exception: `help` / version checked above, and explicit `setup` falls
+  // through naturally.
+  const haveEnv = existsSync(ROOT_ENV) || existsSync(LEGACY_CONTROLLER_ENV);
+  if (!haveEnv && cmd !== 'setup') {
+    process.stderr.write('No .env found at repo root — running setup wizard first.\n\n');
     await runSetupCommand();
     return;
   }

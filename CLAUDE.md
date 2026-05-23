@@ -17,7 +17,7 @@ cd controller && npm install && npm run dev
 # --- production (single-host, Caddy edge) ---
 ./scripts/setup.sh                       # scaffolds a 3-var root .env + state/
 docker compose -f docker-compose.prod.yml up -d
-# Then visit http://localhost:7700/setup to finish Navidrome/LLM/TTS/DJ config.
+# Then visit http://localhost:7700/onboarding to finish Navidrome/LLM/TTS/DJ config.
 ./scripts/update.sh                      # git pull + rebuild + rolling recreate
 
 # Common one-offs
@@ -112,7 +112,8 @@ Next.js 15 App Router with Tailwind. Routes:
 - `/` — `PlayerApp` or `Landing`, chosen at request time by `SUBWAVE_HOMEPAGE` (`player` default, `landing` for the marketing host).
 - `/listen` — always the player.
 - `/landing` — always the broadsheet.
-- `/setup` — interactive onboarding walkthrough.
+- `/setup` — setup-guide docs (Overview, Prerequisites, Quick Start, Manual Install, Development, Updates).
+- `/onboarding` — interactive first-run wizard (the in-browser counterpart to `npm run setup`).
 - `/admin`, `/admin/settings`, `/admin/debug` — admin shell. **Single sign-in gate** (`AdminShell` + `useAdminAuth` in `web/lib/adminAuth.js`) replaces the old in-player Settings modal and the standalone `/debug` route. Credentials are cached in `localStorage` as `base64(user:pass)` and dropped on sign-out.
 
 PWA-installable: `app/manifest.js`, `app/icon.js` + `apple-icon.js`, `app/icons/[size]/route.js` for Android adaptive sizes, `app/screenshots/[variant]/route.js` for install-dialog previews (rendered via `next/og` ImageResponse — beware Satori's constraints: only flex/block/none/-webkit-box `display` values, divs with multiple children need an explicit `display: flex`). `web/public/sw.js` is a minimal service worker (just enough to avoid a /sw.js 404 on install). `useMediaSession` wires the OS lock-screen / headphone / car-display controls; **skip is intentionally omitted** on the listener side so a stray AirPods double-tap doesn't skip the song for every listener.
@@ -131,7 +132,12 @@ Three compose files at the repo root, three deployment shapes:
 
 **Auto-generated Icecast secrets.** The `subwave-icecast` image bakes `icecast.xml.template` and an entrypoint that resolves `ICECAST_*_PASSWORD` with this precedence: env override → persisted `state/icecast-secrets.env` → freshly generated random hex. Resolved values are written back to `state/icecast-secrets.env` (mode 0644 so liquidsoap's uid 10000 can read it). The icecast service has a compose `healthcheck:` on the secrets file's existence, and liquidsoap + controller `depends_on: { condition: service_healthy }` — so the shared-secret handshake completes before downstream services start. To rotate: delete `state/icecast-secrets.env` and restart **all three** of icecast, liquidsoap, and controller (the latter two cache the env at process start).
 
-**Single config surface.** Three required env vars in the root `.env` are all you need to boot: `ADMIN_USER`, `ADMIN_PASS`, `SITE_URL`. Everything else (Navidrome creds, LLM provider/key, TTS engine, DJ persona, station name) is collected by the **first-run wizard at `/setup`** — that's a React flow under `web/components/setup/wizard/*` talking to `controller/src/routes/setup.ts`. The wizard writes Navidrome creds and the "setup-complete" timestamp into `state/setup-config.json`; cloud LLM/TTS API keys into `state/secrets.env` (mode 0600, sourced into process.env on controller boot via `controller/src/setup/secrets.ts`); and everything else through the existing `settings.update()` into `state/settings.json`. Env vars from the root `.env` win when set — the wizard surfaces are pure fallbacks for the env-isn't-set case. `controller/src/setup/firstRun.ts` decides `needsSetup` (true when neither env nor `setup-config.json` provide Navidrome creds); `/state` exposes that boolean so the player + AdminShell can redirect a fresh operator into the wizard.
+**Single config surface.** Three required env vars in the root `.env` are all you need to boot: `ADMIN_USER`, `ADMIN_PASS`, `SITE_URL`. Everything else (Navidrome creds, LLM provider/key, TTS engine, DJ persona, station name) is collected by one of two converging wizards:
+
+- **`npm run setup`** — terminal CLI under `cli/src/commands/setup.ts` (Clack prompts, interactive, deeper probes).
+- **`/onboarding`** — browser wizard under `web/components/onboarding/*` talking to `controller/src/routes/onboarding.ts` (no clone, no Node needed — the path operators reach after a `curl`-and-`docker compose up` install).
+
+Both write to the same persistence layer: Navidrome creds + the setup-complete timestamp go to `state/setup-config.json`; cloud LLM/TTS API keys go to `state/secrets.env` (mode 0600, sourced into `process.env` on controller boot via `controller/src/setup/secrets.ts`); everything else flows through `settings.update()` into `state/settings.json`. Env vars from the root `.env` always win — the wizard surfaces only fill in fields env doesn't supply. `controller/src/setup/firstRun.ts` decides `needsSetup` (true when neither env nor `setup-config.json` provide Navidrome creds); `/state` exposes that boolean so the player + AdminShell can redirect a fresh operator into `/onboarding`.
 
 The shared `/var/sub-wave` mount in **both** the Liquidsoap and Controller containers is what makes the file-based IPC work — they must always be mounted to the same host path.
 

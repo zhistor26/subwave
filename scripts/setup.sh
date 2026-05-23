@@ -91,6 +91,7 @@ Next:
   Prod:      docker compose -f docker-compose.prod.yml up -d
   BYO proxy: docker compose -f docker-compose.byo-proxy.yml up -d
 
-Then visit http://localhost:7700/setup to finish configuration (Navidrome,
-LLM, TTS, DJ persona, jingles).
+Then visit http://localhost:7700/onboarding to finish configuration
+(Navidrome, LLM, TTS, DJ persona, jingles). Or run `npm run setup` for the
+terminal-based equivalent.
 EOF

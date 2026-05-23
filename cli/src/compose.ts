@@ -9,7 +9,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { DOCKER_DIR, REPO_ROOT } from './util.ts';
+import { REPO_ROOT } from './util.ts';
 
 // `prod-byo` is the "bring your own reverse proxy" variant — same as prod
 // but without the bundled Caddy. Treat it as a prod sibling everywhere
@@ -19,14 +19,14 @@ export type ComposeEnv = 'dev' | 'prod' | 'prod-byo' | 'down';
 
 export interface ComposeFile {
   env: Exclude<ComposeEnv, 'down'>;
-  file: string; // path relative to repo root (e.g. "docker/docker-compose.yml")
+  file: string; // path relative to repo root (e.g. "docker-compose.yml")
   abs: string;  // absolute path
 }
 
 export const COMPOSE_FILES: ComposeFile[] = [
-  { env: 'prod',     file: 'docker/docker-compose.prod.yml',      abs: resolve(REPO_ROOT, 'docker/docker-compose.prod.yml') },
-  { env: 'prod-byo', file: 'docker/docker-compose.byo-proxy.yml', abs: resolve(REPO_ROOT, 'docker/docker-compose.byo-proxy.yml') },
-  { env: 'dev',      file: 'docker/docker-compose.yml',           abs: resolve(REPO_ROOT, 'docker/docker-compose.yml') },
+  { env: 'prod',     file: 'docker-compose.prod.yml',      abs: resolve(REPO_ROOT, 'docker-compose.prod.yml') },
+  { env: 'prod-byo', file: 'docker-compose.byo-proxy.yml', abs: resolve(REPO_ROOT, 'docker-compose.byo-proxy.yml') },
+  { env: 'dev',      file: 'docker-compose.yml',           abs: resolve(REPO_ROOT, 'docker-compose.yml') },
 ];
 
 // `prod` and `prod-byo` differ in routing surface (bundled Caddy vs external

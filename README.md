@@ -127,7 +127,7 @@ curl -O https://raw.githubusercontent.com/perminder-klair/subwave/main/.env.exam
 mv .env.example .env
 # Edit .env — set ADMIN_USER, ADMIN_PASS, SITE_URL (three vars, that's it).
 docker compose -f docker-compose.prod.yml up -d
-# Then open https://your-host/setup — the web wizard collects Navidrome,
+# Then open https://your-host/onboarding — the web wizard collects Navidrome,
 # LLM, TTS, DJ persona, and offers to render jingles.
 ```
 
@@ -144,7 +144,7 @@ git clone https://github.com/perminder-klair/subwave.git && cd subwave
 ./scripts/setup.sh          # scaffolds a 3-var root .env + state/
 docker compose up -d        # Icecast + Liquidsoap + Controller — from repo root
 cd web && npm install && npm run dev   # web UI on :7700 — separate, hot-reloading
-# Then http://localhost:7700/setup to finish configuration.
+# Then http://localhost:7700/onboarding to finish configuration.
 ```
 
 Dev compose still bind-mounts `radio.liq` and `sounds/` from the repo so edits

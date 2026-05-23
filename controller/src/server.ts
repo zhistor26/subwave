@@ -22,7 +22,7 @@ import { router as sfxRoutes } from './routes/sfx.js';
 import { router as debugRoutes } from './routes/debug.js';
 import { router as statsRoutes } from './routes/stats.js';
 import { router as djRoutes } from './routes/dj.js';
-import { router as setupRoutes } from './routes/setup.js';
+import { router as onboardingRoutes } from './routes/onboarding.js';
 import { loadSecretsIntoEnv } from './setup/secrets.js';
 import { loadSetupConfig } from './setup/config.js';
 import { getSetupStatus } from './setup/firstRun.js';
@@ -43,7 +43,7 @@ app.use(sfxRoutes);
 app.use(debugRoutes);
 app.use(statsRoutes);
 app.use(djRoutes);
-app.use(setupRoutes);
+app.use(onboardingRoutes);
 
 // (manual skip is not implemented in this build — Liquidsoap controls pacing)
 
@@ -105,7 +105,7 @@ app.listen(config.server.port, async () => {
       const site = process.env.SITE_URL || `http://localhost:${config.server.port}`;
       console.log('');
       console.log('==============================================================');
-      console.log(`  SUB/WAVE needs setup — visit ${site}/setup to finish.`);
+      console.log(`  SUB/WAVE needs setup — visit ${site}/onboarding to finish.`);
       console.log('==============================================================');
       console.log('');
     }

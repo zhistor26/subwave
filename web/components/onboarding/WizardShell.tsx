@@ -116,7 +116,7 @@ export default function WizardShell() {
           </button>
         ) : (
           <div className="text-xs text-ink/50">
-            <Link href="/docs/setup" className="bs-link">
+            <Link href="/setup" className="bs-link">
               read the docs instead
             </Link>
           </div>

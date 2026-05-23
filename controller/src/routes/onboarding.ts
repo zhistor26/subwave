@@ -2,11 +2,11 @@
 // ADMIN_USER + ADMIN_PASS in the root .env before they can reach these.
 //
 // Endpoints:
-//   GET  /setup/status           — needsSetup snapshot for the wizard shell.
-//   POST /setup/test-navidrome   — try the supplied creds, no mutation.
-//   POST /setup/test-llm         — try the supplied provider, no mutation.
-//   POST /setup/save             — persist Navidrome + LLM + TTS + DJ choices.
-//   POST /setup/generate-jingles — kick off the default-jingle render batch.
+//   GET  /onboarding/status           — needsSetup snapshot for the wizard shell.
+//   POST /onboarding/test-navidrome   — try the supplied creds, no mutation.
+//   POST /onboarding/test-llm         — try the supplied provider, no mutation.
+//   POST /onboarding/save             — persist Navidrome + LLM + TTS + DJ choices.
+//   POST /onboarding/generate-jingles — kick off the default-jingle render batch.
 //
 // Both test endpoints are non-mutating: they construct one-off clients with
 // the request body's values and report success/failure. They never touch the
@@ -45,12 +45,12 @@ const DEFAULT_JINGLES = [
 ];
 
 // ---------------------------------------------------------------------------
-// GET /setup/status — quick boolean for the wizard shell to decide what to
+// GET /onboarding/status — quick boolean for the wizard shell to decide what to
 // render. Public (not admin-gated) so the landing page can read it too — it
 // only leaks "is this station configured yet" which is already obvious from
 // the stream being silent.
 // ---------------------------------------------------------------------------
-router.get('/setup/status', async (req, res) => {
+router.get('/onboarding/status', async (req, res) => {
   try {
     res.json(await getSetupStatus());
   } catch (err: any) {
@@ -59,9 +59,9 @@ router.get('/setup/status', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /setup/test-navidrome — body: { url, user, pass }
+// POST /onboarding/test-navidrome — body: { url, user, pass }
 // ---------------------------------------------------------------------------
-router.post('/setup/test-navidrome', requireAdmin, async (req, res) => {
+router.post('/onboarding/test-navidrome', requireAdmin, async (req, res) => {
   const url = String(req.body?.url || '').trim().replace(/\/$/, '');
   const user = String(req.body?.user || '').trim();
   const pass = String(req.body?.pass || '');
@@ -107,11 +107,11 @@ router.post('/setup/test-navidrome', requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /setup/test-llm — body: { provider, model, apiKey?, baseUrl? }
+// POST /onboarding/test-llm — body: { provider, model, apiKey?, baseUrl? }
 // Constructs a one-off AI SDK model and asks it for a single token. Does NOT
 // touch the live llm settings.
 // ---------------------------------------------------------------------------
-router.post('/setup/test-llm', requireAdmin, async (req, res) => {
+router.post('/onboarding/test-llm', requireAdmin, async (req, res) => {
   const provider = String(req.body?.provider || '').trim();
   const model = String(req.body?.model || '').trim();
   const apiKey = String(req.body?.apiKey || '').trim();
@@ -163,7 +163,7 @@ router.post('/setup/test-llm', requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /setup/save — persist the wizard's collected values.
+// POST /onboarding/save — persist the wizard's collected values.
 //
 // Body:
 //   {
@@ -178,7 +178,7 @@ router.post('/setup/test-llm', requireAdmin, async (req, res) => {
 // Everything is optional — the wizard sends only what it collected. The
 // navidrome block is the only field that affects needsSetup() going forward.
 // ---------------------------------------------------------------------------
-router.post('/setup/save', requireAdmin, async (req, res) => {
+router.post('/onboarding/save', requireAdmin, async (req, res) => {
   const b = req.body || {};
   try {
     // Navidrome — only the wizard-managed overlay; never mutate the live env.
@@ -228,12 +228,12 @@ router.post('/setup/save', requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /setup/generate-jingles — fire off the default jingle batch through
+// POST /onboarding/generate-jingles — fire off the default jingle batch through
 // the same code path the admin UI's "+" button uses. Synchronous — the wizard
 // reports per-jingle progress by polling /jingles between calls. We return
 // once everything has been rendered (or the first failure).
 // ---------------------------------------------------------------------------
-router.post('/setup/generate-jingles', requireAdmin, async (req, res) => {
+router.post('/onboarding/generate-jingles', requireAdmin, async (req, res) => {
   try {
     const existing = await jingles.list();
     const existingTexts = new Set(existing.map((j: any) => j.text));

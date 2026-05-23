@@ -107,12 +107,12 @@ export default function AdminShell({ children }: AdminShellProps) {
   // dashboard that's full of empty panels. Public endpoint, no auth needed.
   useEffect(() => {
     if (!hydrated) return;
-    if (pathname?.startsWith('/setup')) return;
+    if (pathname?.startsWith('/onboarding')) return;
     const API = (process.env.NEXT_PUBLIC_API_URL as string | undefined) || '/api';
-    fetch(`${API}/setup/status`)
+    fetch(`${API}/onboarding/status`)
       .then(r => (r.ok ? r.json() : null))
       .then((j: { needsSetup?: boolean } | null) => {
-        if (j?.needsSetup) router.push('/setup');
+        if (j?.needsSetup) router.push('/onboarding');
       })
       .catch(() => {});
   }, [hydrated, pathname, router]);

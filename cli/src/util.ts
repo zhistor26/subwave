@@ -1,6 +1,6 @@
 // Misc helpers. Kept dependency-free so any module can pull these in.
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,11 +10,25 @@ import { homedir } from 'node:os';
 //   cli/src/util.ts → cli/src → cli → <repo root>
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-export const DOCKER_DIR = resolve(REPO_ROOT, 'docker');
 export const SCRIPTS_DIR = resolve(REPO_ROOT, 'scripts');
-export const CONTROLLER_ENV = resolve(REPO_ROOT, 'controller', '.env');
-export const CONTROLLER_ENV_EXAMPLE = resolve(REPO_ROOT, 'controller', '.env.example');
+// Single root .env (post single-compose refactor) — replaces the old
+// docker/.env + controller/.env pair. Three vars are required to boot;
+// everything else is collected by the wizard and persisted under state/.
+export const ROOT_ENV = resolve(REPO_ROOT, '.env');
+export const ROOT_ENV_EXAMPLE = resolve(REPO_ROOT, '.env.example');
 export const STATE_DIR = resolve(REPO_ROOT, 'state');
+
+// Wizard-managed overlays under state/. These mirror the browser wizard's
+// targets so both flows converge on the same persistence layer.
+//   setup-config.json — Navidrome creds + setupCompletedAt timestamp
+//   secrets.env       — cloud LLM/TTS API keys (mode 0600)
+export const SETUP_CONFIG_PATH = resolve(STATE_DIR, 'setup-config.json');
+export const SECRETS_ENV_PATH = resolve(STATE_DIR, 'secrets.env');
+
+// Legacy paths — kept exported so doctor.ts / migration shims can warn about
+// them, but no fresh write path targets these anymore.
+export const LEGACY_CONTROLLER_ENV = resolve(REPO_ROOT, 'controller', '.env');
+export const LEGACY_DOCKER_ENV = resolve(REPO_ROOT, 'docker', '.env');
 
 export function expandHome(p: string): string {
   if (p.startsWith('~/')) return resolve(homedir(), p.slice(2));
@@ -100,6 +114,87 @@ export function writeEnvFile(
   let content = out.join('\n');
   if (!content.endsWith('\n')) content += '\n';
   writeFileSync(path, content);
+}
+
+// ─── Wizard overlay helpers (state/setup-config.json + state/secrets.env) ───
+// Mirror the controller-side helpers in controller/src/setup/{config,secrets}.ts
+// so the CLI wizard and the web wizard write the same files in the same shape.
+
+export interface SetupConfig {
+  navidrome?: { url?: string; user?: string; pass?: string };
+  setupCompletedAt?: string;
+}
+
+export function readSetupConfig(): SetupConfig {
+  if (!existsSync(SETUP_CONFIG_PATH)) return {};
+  try {
+    return JSON.parse(readFileSync(SETUP_CONFIG_PATH, 'utf8')) as SetupConfig;
+  } catch {
+    return {};
+  }
+}
+
+export function writeSetupConfig(patch: Partial<SetupConfig>): SetupConfig {
+  const current = readSetupConfig();
+  const next: SetupConfig = {
+    ...current,
+    ...patch,
+    navidrome: { ...(current.navidrome || {}), ...(patch.navidrome || {}) },
+  };
+  mkdirSync(dirname(SETUP_CONFIG_PATH), { recursive: true });
+  writeFileSync(SETUP_CONFIG_PATH, JSON.stringify(next, null, 2));
+  return next;
+}
+
+// Keys the wizard is allowed to write to state/secrets.env. Mirrors
+// controller/src/setup/secrets.ts SECRET_ENV_KEYS — anything else passed
+// in gets silently ignored.
+export const WIZARD_SECRET_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GOOGLE_GENERATIVE_AI_API_KEY',
+  'OPENROUTER_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'AI_GATEWAY_API_KEY',
+  'ELEVENLABS_API_KEY',
+  'SEARCH_API_KEY',
+] as const;
+
+// Merge a batch of API keys into state/secrets.env (mode 0600), preserving
+// any keys the operator added by hand. Same shape the controller's
+// saveSecrets() writes, so the next controller boot picks them up.
+export function writeSecretsEnv(patch: Record<string, string>): void {
+  const current: Record<string, string> = {};
+  if (existsSync(SECRETS_ENV_PATH)) {
+    for (const rawLine of readFileSync(SECRETS_ENV_PATH, 'utf8').split('\n')) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq < 0) continue;
+      const key = line.slice(0, eq).trim();
+      if ((WIZARD_SECRET_KEYS as readonly string[]).includes(key)) {
+        current[key] = line.slice(eq + 1);
+      }
+    }
+  }
+  for (const [key, value] of Object.entries(patch)) {
+    if (!(WIZARD_SECRET_KEYS as readonly string[]).includes(key)) continue;
+    current[key] = value;
+  }
+  const body = [
+    '# SUB/WAVE secrets — written by the install wizard.',
+    '# Sourced by the controller on boot. Mode 0600 enforced below.',
+    '',
+    ...Object.entries(current).map(([k, v]) => `${k}=${v}`),
+    '',
+  ].join('\n');
+  mkdirSync(dirname(SECRETS_ENV_PATH), { recursive: true });
+  writeFileSync(SECRETS_ENV_PATH, body);
+  try {
+    chmodSync(SECRETS_ENV_PATH, 0o600);
+  } catch {
+    // chmod may fail on non-POSIX filesystems (e.g. Windows host) — non-fatal.
+  }
 }
 
 export function formatMs(ms: number): string {

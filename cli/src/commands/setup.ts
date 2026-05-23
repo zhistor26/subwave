@@ -1,30 +1,33 @@
 // `subwave setup` — the install wizard.
 //
 // Walks the operator through prerequisites, credentials, and first boot.
-// Replaces the legacy scripts/setup.mjs (deleted alongside this file).
-// Tight scope by design: only the env keys the controller actually reads,
-// and only the choices that have to be made at install time. Everything
-// else (personas, shows, schedule, TTS choices, weather location, …) is
-// left to the admin Settings UI.
+// In the single-compose world this is one of two converging install paths:
+// the operator can also finish setup in the browser wizard at /setup. Both
+// flows write to the same persistence layer:
+//
+//   .env                      — ADMIN_USER, ADMIN_PASS, SITE_URL, TZ, etc.
+//   state/setup-config.json   — Navidrome creds + setupCompletedAt
+//   state/secrets.env (0600)  — cloud LLM/TTS API keys
+//   POST /settings            — LLM provider/model (live)
 //
 // Flow:
-//   1. Mode (dev / prod)
+//   1. Mode (dev / prod / prod-byo)
 //   2. Preflight (node, docker, docker daemon)
 //   3. STATE_DIR (prod only)
 //   4. Navidrome (URL/user/pass) + reachability probe
 //   5. LLM choice + API key + probe
-//   6. Admin credentials (REQUIRED in prod)
+//   6. Admin credentials (REQUIRED in prod) + SITE_URL
 //   7. Timezone
-//   8. Write controller/.env (template-aware)
-//   9. Shell to scripts/setup.sh — icecast passwords, icecast.xml, sounds
-//  10. Append TZ to docker/.env
-//  11. docker compose up -d
-//  12. waitForHealth
-//  13. POST /settings to apply the LLM choice (so the operator's first DJ
+//   8. Write root .env (template-aware) + Navidrome → setup-config.json
+//      + API keys → secrets.env (0600)
+//   9. Shell to scripts/setup.sh — state dir perms, web/.env.local
+//  10. docker compose up -d  (compose lives at repo root now)
+//  11. waitForHealth
+//  12. POST /settings to apply the LLM choice (so the operator's first DJ
 //      action uses the right provider, no admin-UI detour)
-//  14. Optionally render jingles
-//  15. Dev only: optionally start `npm run dev` (web UI) in the background
-//  16. Endpoints summary
+//  13. Optionally render jingles
+//  14. Dev only: optionally start `npm run dev` (web UI) in the background
+//  15. Endpoints summary
 //
 // Probes (cli/src/probes.ts) are warn-not-fail — the operator can keep
 // going if the network isn't ready yet.
@@ -34,12 +37,15 @@ import { accessSync, constants, existsSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import {
-  CONTROLLER_ENV,
-  CONTROLLER_ENV_EXAMPLE,
-  DOCKER_DIR,
+  LEGACY_CONTROLLER_ENV,
   REPO_ROOT,
+  ROOT_ENV,
+  ROOT_ENV_EXAMPLE,
   parseEnvFile,
+  readSetupConfig,
   writeEnvFile,
+  writeSecretsEnv,
+  writeSetupConfig,
   have,
 } from '../util.ts';
 import { COMPOSE_FILES, isProdEnv, webBaseFor, streamUrlFor, apiBaseFor, type ComposeEnv } from '../compose.ts';
@@ -63,7 +69,7 @@ type Mode = 'dev' | 'prod' | 'prod-byo';
 type CloudProvider = 'anthropic' | 'openai' | 'google' | 'deepseek' | 'openrouter' | 'gateway';
 type LlmProvider = 'ollama' | 'openai-compatible' | CloudProvider;
 
-// Cloud providers whose API key the AI SDK reads from a controller env var.
+// Cloud providers whose API key the AI SDK reads from a process.env var.
 // openai-compatible is deliberately absent — it has no canonical env var, so
 // its key (when a self-hosted server needs one) goes into settings instead.
 const CLOUD_ENV_VAR: Record<CloudProvider, string> = {
@@ -84,8 +90,9 @@ interface LlmChoice {
   baseUrl?: string;
   // Model id — openai-compatible + cloud. Optional: blank defers to the admin UI.
   model?: string;
-  // API key. Cloud → written to controller/.env as the provider's env var.
-  // openai-compatible → applied to settings.llm.apiKey (no env var exists).
+  // API key. Cloud → written to state/secrets.env (mode 0600), sourced into
+  // process.env on controller boot. openai-compatible → applied to
+  // settings.llm.apiKey via POST /settings (no canonical env var).
   apiKey?: string;
 }
 
@@ -110,52 +117,61 @@ export async function runSetupCommand(): Promise<void> {
   // --- 5. LLM --------------------------------------------------------------
   const llm = await collectLlm();
 
-  // --- 6. Admin creds ------------------------------------------------------
+  // --- 6. Admin creds + SITE_URL ------------------------------------------
   const admin = await collectAdmin(mode);
+  const siteUrl = await promptSiteUrl(mode);
 
   // --- 7. Timezone ---------------------------------------------------------
   const tz = await promptTimezone();
 
-  // --- 8. Write controller/.env -------------------------------------------
-  header('Writing controller/.env');
+  // --- 8a. Write the root .env --------------------------------------------
+  // Boot-time config: admin creds, public origin, timezone, homepage mode.
+  // Wins over anything in state/setup-config.json or state/secrets.env when
+  // both are set (env-first precedence is enforced controller-side).
+  header('Writing .env (repo root)');
   const envValues: Record<string, string> = {
-    NAVIDROME_URL: navidrome.url,
-    NAVIDROME_USER: navidrome.user,
-    NAVIDROME_PASS: navidrome.pass,
     ADMIN_USER: admin.user,
     ADMIN_PASS: admin.pass,
+    SITE_URL: siteUrl,
+    TZ: tz,
   };
-  if (llm.provider && llm.apiKey && llm.provider in CLOUD_ENV_VAR) {
-    envValues[CLOUD_ENV_VAR[llm.provider as CloudProvider]] = llm.apiKey;
-  }
-  writeEnvFile(CONTROLLER_ENV, envValues, { templateFallback: CONTROLLER_ENV_EXAMPLE });
-  ok(`wrote ${pc.dim('controller/.env')} (${Object.keys(envValues).length} keys)`);
+  // Preserve SUBWAVE_HOMEPAGE if already set; otherwise default to `player`.
+  const existingRoot = parseEnvFile(ROOT_ENV);
+  if (!existingRoot.SUBWAVE_HOMEPAGE) envValues.SUBWAVE_HOMEPAGE = 'player';
+  writeEnvFile(ROOT_ENV, envValues, { templateFallback: ROOT_ENV_EXAMPLE });
+  ok(`wrote ${pc.dim('.env')} (${Object.keys(envValues).length} keys)`);
 
-  // --- 9. Bash bootstrap (icecast passwords + icecast.xml + sounds) -------
+  // --- 8b. Persist Navidrome creds to state/setup-config.json ------------
+  // Same target the browser wizard writes to. The controller falls back to
+  // this file when NAVIDROME_* env vars are blank; env still wins when set.
+  writeSetupConfig({
+    navidrome: { url: navidrome.url, user: navidrome.user, pass: navidrome.pass },
+    setupCompletedAt: new Date().toISOString(),
+  });
+  ok(`wrote ${pc.dim('state/setup-config.json')} (Navidrome creds + setupCompletedAt)`);
+
+  // --- 8c. Persist cloud API keys to state/secrets.env (mode 0600) -------
+  // Sourced into process.env on controller boot. We never write secrets to
+  // .env (world-readable) or settings.json — they live in their own 0600 file.
+  if (llm.provider && llm.apiKey && llm.provider in CLOUD_ENV_VAR) {
+    const k = CLOUD_ENV_VAR[llm.provider as CloudProvider];
+    writeSecretsEnv({ [k]: llm.apiKey });
+    ok(`wrote ${pc.dim('state/secrets.env')} (${k}, mode 0600)`);
+  }
+
+  // --- 9. Bash bootstrap (state dir perms, web/.env.local) ----------------
+  // scripts/setup.sh is much smaller in the single-compose world; it just
+  // ensures state/ has the right permissions and seeds web/.env.local for
+  // native `npm run dev`. Icecast passwords are generated by the icecast
+  // image on first boot; the renderer for icecast.xml is gone too.
   const bashEnv = isProdEnv(mode)
     ? { ...process.env, STATE_DIR: stateDir }
     : { ...process.env };
   await runBashSetup(bashEnv);
 
-  // --- 10. TZ + SUBWAVE_HOMEPAGE to docker/.env ---------------------------
-  // docker compose reads docker/.env for ${TZ} / ${SUBWAVE_HOMEPAGE}
-  // expansion in the compose files. Write them alongside the icecast
-  // passwords that setup.sh just generated. SUBWAVE_HOMEPAGE defaults to
-  // `player` — flip to `landing` in docker/.env to expose the marketing
-  // page at /.
-  const dockerEnvPath = resolve(DOCKER_DIR, '.env');
-  if (existsSync(dockerEnvPath)) {
-    const existingDocker = parseEnvFile(dockerEnvPath);
-    const dockerEnv: Record<string, string> = { TZ: tz };
-    if (!existingDocker.SUBWAVE_HOMEPAGE) {
-      dockerEnv.SUBWAVE_HOMEPAGE = 'player';
-    }
-    writeEnvFile(dockerEnvPath, dockerEnv);
-    muted(`set TZ=${tz} in docker/.env`);
-    if (dockerEnv.SUBWAVE_HOMEPAGE) {
-      muted('set SUBWAVE_HOMEPAGE=player in docker/.env (flip to `landing` to expose marketing page)');
-    }
-  }
+  // --- 10. (legacy step removed) docker/.env no longer exists in the
+  // single-compose layout — TZ + SUBWAVE_HOMEPAGE went into the root .env
+  // above and compose interpolates them straight from there.
 
   // --- 11. Bring the stack up ---------------------------------------------
   const composeEnv: ComposeEnv = mode;
@@ -252,12 +268,19 @@ export async function runSetupCommand(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function pickMode(): Promise<Mode> {
-  // If controller/.env already exists, the operator is re-running setup.
-  // Suggest the mode they probably want, but don't lock them in.
-  const existing = parseEnvFile(CONTROLLER_ENV);
-  const hasExisting = Object.keys(existing).length > 0;
-  if (hasExisting) {
-    muted(`Existing controller/.env detected (${Object.keys(existing).length} keys). You can keep the values or reconfigure as you go.`);
+  // If a previous install left a .env (or the legacy controller/.env) behind,
+  // the operator is re-running setup. Surface that — collectAdmin /
+  // collectNavidrome pre-fill from whichever source they find.
+  const root = parseEnvFile(ROOT_ENV);
+  const legacy = parseEnvFile(LEGACY_CONTROLLER_ENV);
+  const existingSource = Object.keys(root).length > 0
+    ? '.env'
+    : Object.keys(legacy).length > 0
+      ? 'controller/.env (legacy)'
+      : null;
+  if (existingSource) {
+    const count = Object.keys(root).length || Object.keys(legacy).length;
+    muted(`Existing ${existingSource} detected (${count} keys). You can keep the values or reconfigure as you go.`);
   }
   return exitIfCancelled(await p.select({
     message: 'How are you running SUB/WAVE?',
@@ -331,10 +354,15 @@ async function promptStateDir(): Promise<string> {
 interface NavidromeCreds { url: string; user: string; pass: string; }
 
 async function collectNavidrome(): Promise<NavidromeCreds> {
-  const existing = parseEnvFile(CONTROLLER_ENV);
-  let url = existing.NAVIDROME_URL ?? 'http://localhost:4533';
-  let user = existing.NAVIDROME_USER ?? '';
-  let pass = existing.NAVIDROME_PASS ?? '';
+  // Pre-fill from the wizard overlay (state/setup-config.json), then env
+  // overrides on the root .env (NAVIDROME_*), then legacy controller/.env
+  // from a pre-single-compose install. First non-empty value wins.
+  const sc = readSetupConfig().navidrome || {};
+  const rootEnv = parseEnvFile(ROOT_ENV);
+  const legacy = parseEnvFile(LEGACY_CONTROLLER_ENV);
+  let url = rootEnv.NAVIDROME_URL || sc.url || legacy.NAVIDROME_URL || 'http://host.docker.internal:4533';
+  let user = rootEnv.NAVIDROME_USER || sc.user || legacy.NAVIDROME_USER || '';
+  let pass = rootEnv.NAVIDROME_PASS || sc.pass || legacy.NAVIDROME_PASS || '';
 
   while (true) {
     header('Navidrome (Subsonic API)');
@@ -468,7 +496,7 @@ async function collectLlm(): Promise<LlmChoice> {
     placeholder: EXAMPLE_MODEL[provider],
   }), { backOnCancel: false });
   if (!apiKey) {
-    warn('No key provided — saving the provider choice; add the key later in controller/.env or the admin UI.');
+    warn('No key provided — saving the provider choice; add the key later via the admin UI, the browser wizard at /setup, or by hand in state/secrets.env.');
   } else {
     await maybeProbeCloud(provider, label, apiKey);
   }
@@ -492,7 +520,11 @@ async function collectAdmin(mode: Mode): Promise<AdminCreds> {
   } else {
     muted('Recommended even in dev (gates /settings, /debug, /jingles, /restart-mixer).');
   }
-  const existing = parseEnvFile(CONTROLLER_ENV);
+  // Root .env wins; fall back to legacy controller/.env for upgraders.
+  const existing = {
+    ...parseEnvFile(LEGACY_CONTROLLER_ENV),
+    ...parseEnvFile(ROOT_ENV),
+  };
   const user = exitIfCancelled(await p.text({
     message: 'Admin user',
     initialValue: existing.ADMIN_USER || 'subwave',
@@ -509,6 +541,33 @@ async function collectAdmin(mode: Mode): Promise<AdminCreds> {
       ? existing.ADMIN_PASS
       : generated);
   return { user, pass };
+}
+
+// SITE_URL is required in the root .env in the single-compose world: it
+// determines absolute URLs (OG tags, manifest, sitemap, share cards) at
+// both build and runtime. In dev a localhost origin is fine; in prod the
+// operator should know their public hostname before booting.
+async function promptSiteUrl(mode: Mode): Promise<string> {
+  header('Public site URL');
+  const existing = parseEnvFile(ROOT_ENV).SITE_URL;
+  const defaultUrl =
+    existing ||
+    (mode === 'dev' ? 'http://localhost:7700' : '');
+  if (mode === 'dev') {
+    muted('Used for absolute URLs (OG tags, sitemap). Localhost is fine in dev.');
+  } else {
+    muted('Used for absolute URLs (OG tags, sitemap, share cards). Set to your public origin.');
+  }
+  return exitIfCancelled(await p.text({
+    message: 'SITE_URL',
+    initialValue: defaultUrl,
+    placeholder: 'https://radio.example.com',
+    validate: (v: string) => {
+      if (!v) return isProdEnv(mode) ? 'required in prod' : undefined;
+      if (!/^https?:\/\//.test(v)) return 'must start with http(s)://';
+      return undefined;
+    },
+  }), { backOnCancel: false });
 }
 
 async function promptTimezone(): Promise<string> {
@@ -582,8 +641,9 @@ async function applyLlmSetting(env: ComposeEnv, llm: LlmChoice): Promise<void> {
     if (llm.model) body.llm.model = llm.model;
     if (llm.apiKey) body.llm.apiKey = llm.apiKey;
   } else if (llm.model) {
-    // Cloud providers: the API key is in controller/.env and the AI SDK reads
-    // <PROVIDER>_API_KEY automatically — we only carry the model id here.
+    // Cloud providers: the API key lives in state/secrets.env (sourced into
+    // process.env on controller boot) and the AI SDK reads <PROVIDER>_API_KEY
+    // automatically — we only carry the model id through to settings.
     body.llm.model = llm.model;
   }
 

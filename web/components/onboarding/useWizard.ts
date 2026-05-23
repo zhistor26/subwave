@@ -98,7 +98,7 @@ export function useWizard() {
   // POST helpers — every wizard write goes through adminFetch so the same
   // 401-handling that the admin shell uses applies here.
   const testNavidrome = useCallback(async () => {
-    const r = await auth.adminFetch('/setup/test-navidrome', {
+    const r = await auth.adminFetch('/onboarding/test-navidrome', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(data.navidrome),
@@ -110,7 +110,7 @@ export function useWizard() {
   }, [auth, data.navidrome, patch]);
 
   const testLlm = useCallback(async () => {
-    const r = await auth.adminFetch('/setup/test-llm', {
+    const r = await auth.adminFetch('/onboarding/test-llm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(data.llm),
@@ -162,7 +162,7 @@ export function useWizard() {
       weather: { locationName: data.dj.locationName },
       apiKeys,
     };
-    const r = await auth.adminFetch('/setup/save', {
+    const r = await auth.adminFetch('/onboarding/save', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -172,7 +172,7 @@ export function useWizard() {
   }, [auth, data]);
 
   const generateJingles = useCallback(async () => {
-    const r = await auth.adminFetch('/setup/generate-jingles', { method: 'POST' });
+    const r = await auth.adminFetch('/onboarding/generate-jingles', { method: 'POST' });
     const j: any = await r.json().catch(() => ({}));
     return { ok: !!j.ok, created: j.created, total: j.total, error: j.error };
   }, [auth]);
