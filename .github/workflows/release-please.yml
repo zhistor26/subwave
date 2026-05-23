@@ -18,5 +18,11 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
+          # PAT (not GITHUB_TOKEN) so the tag push triggers publish-images.yml.
+          # GitHub suppresses downstream workflow runs for events triggered by
+          # GITHUB_TOKEN to prevent loops; a PAT-pushed tag doesn't have that
+          # restriction. Falls back to GITHUB_TOKEN if the secret is unset, so
+          # the release PR still gets created — just no auto-publish.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
