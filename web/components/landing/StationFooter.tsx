@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export default function StationFooter({ djName }: { djName?: string }) {
   return (
-    <footer className="flex flex-col gap-[14px]">
+    <footer className="mt-16 flex flex-col gap-[14px]">
       <div className="bs-rule-double" />
       <div className="flex flex-wrap items-baseline justify-between gap-4 py-5 text-[11px] tracking-[0.18em] text-muted uppercase">
         <span className="font-bold text-ink">SUB/WAVE · EST. 2026</span>
