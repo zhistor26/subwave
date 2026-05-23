@@ -87,6 +87,13 @@ fi
 
 mkdir -p "$STATE"/logs "$STATE"/voice "$STATE"/jingles "$STATE"/sessions "$STATE"/archive "$STATE"/sfx
 
+# Liquidsoap inside the container runs as a non-host uid and writes
+# state/logs/radio.log on boot. A fresh mkdir gives 755, which makes that write
+# fail with EACCES and crash-loops the container. Widen the tree so every
+# container uid can read+write. (The main checkout ends up 777 the same way
+# after its first container run; this just front-loads it.)
+chmod -R a+rwX "$STATE"
+
 # icecast.xml — rendered config with the Icecast source/admin passwords.
 # Regenerating it needs the operator's password inputs (subwave-deploy /
 # setup.sh territory), so copy main's. The icecast container bind-mounts this
