@@ -22,22 +22,57 @@ export interface PortHolder {
   command: string;
 }
 
-// Returns the PID/command listening on :7700, or null. Uses POSIX `lsof`.
+// Returns the PID/command listening on :7700, or null.
+// Prefers `lsof` (default on macOS) and falls back to `ss` (default on Linux,
+// where `lsof` is often not installed — e.g. base Arch / Debian).
 export function whoHolds7700(): PortHolder | null {
-  const out = spawnSync(
+  // --- lsof path (macOS, and Linux hosts where the operator installed it) ---
+  const lsof = spawnSync(
     'lsof',
     ['-nP', '-iTCP:7700', '-sTCP:LISTEN', '-F', 'pc'],
     { encoding: 'utf8' },
   );
-  if (out.status !== 0 || !out.stdout) return null;
-  // -F output: lines start with field tag — 'p' = pid, 'c' = command.
-  let pid = 0;
-  let command = '';
-  for (const line of out.stdout.split('\n')) {
-    if (line.startsWith('p')) pid = Number(line.slice(1));
-    else if (line.startsWith('c')) command = line.slice(1);
+  if (lsof.status === 0 && lsof.stdout) {
+    // -F output: lines start with field tag — 'p' = pid, 'c' = command.
+    let pid = 0;
+    let command = '';
+    for (const line of lsof.stdout.split('\n')) {
+      if (line.startsWith('p')) pid = Number(line.slice(1));
+      else if (line.startsWith('c')) command = line.slice(1);
+    }
+    if (pid) return { pid, command };
   }
-  return pid ? { pid, command } : null;
+  // lsof missing (ENOENT → error set) or empty → try ss before giving up.
+  // Anything else (lsof present + non-zero) means the port is genuinely free.
+  if (lsof.error || (lsof.status === 0 && !lsof.stdout)) {
+    const ss = spawnSync(
+      'ss',
+      ['-ltnpH', 'sport = :7700'],
+      { encoding: 'utf8' },
+    );
+    if (ss.status === 0 && ss.stdout) {
+      // Sample line:
+      //   LISTEN 0 511 *:7700 *:* users:(("next-server (v1",pid=3295,fd=22))
+      // The command field is truncated to ~15 chars by ss — "next-server (v1"
+      // for next dev — so we strip the parenthesised version suffix and
+      // surrounding quotes to give status.ts something stable to match on.
+      const match = ss.stdout.match(/users:\(\("([^"]+)",pid=(\d+),/);
+      if (match) {
+        const command = match[1].replace(/\s*\(v\d.*$/, '').trim();
+        const pid = Number(match[2]);
+        if (pid) return { pid, command };
+      }
+    }
+  }
+  return null;
+}
+
+// Process names we accept as "our web dev server" — used by status and stop.
+// macOS `lsof` reports the launching node interpreter as `node`; Linux `ss`
+// reports the actual binary, which for `next dev` is `next-server`.
+const WEB_DEV_COMMANDS = new Set(['node', 'next-server']);
+export function isWebDevCommand(command: string): boolean {
+  return WEB_DEV_COMMANDS.has(command);
 }
 
 export function webDepsInstalled(): boolean {
@@ -108,7 +143,7 @@ export function stopWebDev(): { stopped: boolean; reason?: string } {
     cleanupPidFile();
     return { stopped: false, reason: 'not running' };
   }
-  if (holder.command !== 'node') {
+  if (!isWebDevCommand(holder.command)) {
     return { stopped: false, reason: `:7700 held by ${holder.command} (pid ${holder.pid}) — refusing to kill` };
   }
   try {
@@ -141,7 +176,7 @@ export async function maybeStartWebDev(opts: { askFirst?: boolean } = {}): Promi
   header('Web dev server');
   const holder = whoHolds7700();
   if (holder) {
-    if (holder.command === 'node') {
+    if (isWebDevCommand(holder.command)) {
       ok(`Already running on :7700 (pid ${holder.pid})`);
       return 'running';
     }

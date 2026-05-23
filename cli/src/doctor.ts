@@ -14,7 +14,7 @@ import { detectCompose, isProdEnv, streamUrlFor, type ComposeStatus } from './co
 import { dockerDaemonOk, composeExec } from './docker.ts';
 import { makeClient } from './api.ts';
 import { CONTROLLER_ENV, parseEnvFile, REPO_ROOT, STATE_DIR, fetchErrorReason } from './util.ts';
-import { whoHolds7700, readWebDevPid, WEB_DEV_LOG } from './web-dev.ts';
+import { whoHolds7700, readWebDevPid, WEB_DEV_LOG, isWebDevCommand } from './web-dev.ts';
 
 export type Status = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -275,7 +275,7 @@ async function checkWebDev(): Promise<Finding[]> {
     });
     return out;
   }
-  if (holder.command !== 'node') {
+  if (!isWebDevCommand(holder.command)) {
     out.push({
       label: ':7700',
       status: 'fail',

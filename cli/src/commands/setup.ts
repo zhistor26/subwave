@@ -154,7 +154,12 @@ export async function runSetupCommand(): Promise<void> {
     err(`unknown mode: ${mode}`);
     return;
   }
-  const wantBuild = isProdEnv(mode);
+  // Always build on setup: this is the first-time install, so the
+  // first-party images (sub-wave-liquidsoap:local, etc.) don't exist
+  // locally yet, and the dev compose file references them by name with
+  // no upstream registry — so `up -d` without `--build` would try to
+  // pull from docker.io and fail.
+  const wantBuild = true;
   header(`Starting ${mode} stack`);
   muted(`docker compose -f ${file.file} up -d${wantBuild ? ' --build' : ''}`);
   console.log();

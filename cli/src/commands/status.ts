@@ -5,7 +5,7 @@ import { detectCompose } from '../compose.ts';
 import { makeClient, type NowPlayingPayload, type StatePayload } from '../api.ts';
 import { formatRelative, truncate } from '../util.ts';
 import { ok, warn, err, info, muted, header, pc, accent, pauseForEnter } from '../ui.ts';
-import { whoHolds7700, readWebDevPid } from '../web-dev.ts';
+import { whoHolds7700, readWebDevPid, isWebDevCommand } from '../web-dev.ts';
 
 export async function runStatusCommand(): Promise<void> {
   const compose = detectCompose();
@@ -32,7 +32,7 @@ export async function runStatusCommand(): Promise<void> {
     const trackedPid = readWebDevPid();
     if (!holder) {
       warn(`web (dev) — ${pc.dim('not running on :7700')}`);
-    } else if (holder.command === 'node') {
+    } else if (isWebDevCommand(holder.command)) {
       const detail = trackedPid === holder.pid
         ? `running · pid ${holder.pid}`
         : `running · pid ${holder.pid} ${pc.dim('(not started by this CLI)')}`;
