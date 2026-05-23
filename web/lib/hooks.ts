@@ -12,23 +12,6 @@ export function useClock(): Date | null {
   return t;
 }
 
-// Pseudo-random animated spectrum used as fallback when the real analyser
-// can't attach (CORS, paused, no AudioContext, etc.). Values in [0, 1].
-export function useSpectrum(bins = 120, active = true, speed = 60): number[] {
-  const [arr, setArr] = useState<number[]>(() => Array(bins).fill(0.1));
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => {
-      setArr(prev => prev.map((v, i) => {
-        const target = Math.pow(Math.random(), 1.4) * (1 - i / (bins * 2.2));
-        return v + (target - v) * 0.45;
-      }));
-    }, speed);
-    return () => clearInterval(id);
-  }, [active, bins, speed]);
-  return arr;
-}
-
 export interface Analyser {
   ready: boolean;
   read: () => Uint8Array<ArrayBuffer> | null;
@@ -44,7 +27,7 @@ interface WebkitWindow {
 // the first time `active` flips true, then writes per-frame frequency bytes
 // into an internal ref read via `read()`. Returns `{ ready, read }`. If CORS
 // or anything else blocks attachment, `ready` stays false and `read()` returns
-// null — callers should fall back to `useSpectrum`.
+// null — callers should render static bars (no fake reactive animation).
 export function useAnalyser(
   audioRef: RefObject<HTMLAudioElement | null> | null | undefined,
   active: boolean,
@@ -84,9 +67,10 @@ export function useAnalyser(
         setReady(true);
 
         // iOS Safari quirk: createMediaElementSource() on a live HTTP MP3 stream
-        // wires up cleanly but the analyser only ever returns zeros. Probe once
-        // after playback actually starts — if no samples land in ~600 ms, flip
-        // ready=false so the pseudo-random useSpectrum fallback takes over.
+        // wires up cleanly but the analyser only ever returns zeros (WebKit
+        // limitation, no app-level workaround for live streams). Probe once
+        // after playback starts — if no samples land in ~600 ms, flip
+        // ready=false so callers render static bars instead.
         if (probedRef.current) return;
         onPlaying = () => {
           if (probedRef.current || cancelled) return;
