@@ -28,6 +28,7 @@ Usage:
   subwave stop             docker compose down (also kills web dev in dev mode)
   subwave restart [svc]    rebuild / restart a service (dev adds \`web-dev\`)
   subwave logs [svc|all]   tail docker compose logs (dev adds \`web-dev\`)
+  subwave update           pull new images + recreate changed services
   subwave play [dev|prod]  open the terminal player (TUI, cloned-repo only)
   subwave listen [dev|prod] open the web player in a browser
   subwave admin [dev|prod] open the admin console in a browser
@@ -158,6 +159,11 @@ async function main(): Promise<void> {
       const { runLogsCommand } = await import('./commands/logs.ts');
       const service = rest[0];
       await runLogsCommand({ service });
+      return;
+    }
+    case 'update': {
+      const { runUpdateCommand } = await import('./commands/update.ts');
+      await runUpdateCommand();
       return;
     }
     case 'play': {

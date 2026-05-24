@@ -16,10 +16,22 @@ export default function ManualInstall() {
     <SetupPage
       eyebrow="SETUP · 03"
       title="Run the commands yourself."
-      intro="The same outcome as the wizard, just without the wizard wrapping it. Useful if you're scripting the install, want a non-standard layout, or just prefer running each command by hand. These four steps land at a public-facing single-host deploy — Caddy on the edge, Cloudflare in front, internal-only Icecast, Controller, and Web."
+      intro="The no-CLI alternative — same outcome, no `subwave` binary on your host. Useful if you'd rather not run an installer, are scripting the deploy, want a non-standard layout, or just prefer running each command by hand. These four steps land at a public-facing single-host deploy — Caddy on the edge, Cloudflare in front, internal-only Icecast, Controller, and Web."
       current="/setup/manual"
     >
       <section className="bs-section">
+        <div className="bs-callout">
+          <div className="bs-eyebrow">PREFER THE CLI?</div>
+          <p>
+            If you don&apos;t mind a single binary on your host, the standalone
+            CLI collapses these four steps into{' '}
+            <code className="bs-code-inline">subwave init &amp;&amp; subwave start &amp;&amp; subwave setup</code>{' '}
+            — see <Link href="/setup/quick-start">Quick Start</Link>. It uses
+            the same compose images and writes to the same{' '}
+            <code className="bs-code-inline">state/</code> layout; nothing is
+            locked in.
+          </p>
+        </div>
         <div className="bs-step">
           <div className="bs-step-num">01</div>
           <div className="bs-step-body">

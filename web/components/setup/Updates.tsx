@@ -38,17 +38,34 @@ docker compose up -d --build controller web
 ./scripts/health-check.sh`}</CodeBlock>
 
         <div className="bs-callout">
-          <div className="bs-eyebrow">RUNNING FROM GHCR IMAGES?</div>
+          <div className="bs-eyebrow">USING THE STANDALONE CLI?</div>
           <p>
-            If you're pulling prebuilt images from{' '}
+            If you installed via{' '}
+            <code className="bs-code-inline">curl get.subwave.com | sh</code>, two
+            commands cover both update axes:
+          </p>
+          <CodeBlock>{`subwave update         # pull new images, recreate changed services
+subwave self-update    # replace the CLI binary itself with the latest release`}</CodeBlock>
+          <p className="text-muted">
+            <code className="bs-code-inline">subwave update</code> is a docker
+            pull + up -d wrapper that knows which compose file is live;{' '}
+            <code className="bs-code-inline">self-update</code> re-runs the
+            installer in place.
+          </p>
+        </div>
+
+        <div className="bs-callout">
+          <div className="bs-eyebrow">RUNNING FROM GHCR IMAGES (NO CLI)?</div>
+          <p>
+            If you&apos;re pulling prebuilt images from{' '}
             <code className="bs-code-inline">ghcr.io/perminder-klair/subwave-*</code>{' '}
-            instead of building locally, the rebuild step becomes a pull:
+            without the CLI, the rebuild step becomes a pull:
           </p>
           <CodeBlock>{`# pin SUBWAVE_VERSION in .env, then:
 docker compose pull
 docker compose up -d`}</CodeBlock>
           <p className="text-muted">
-            Same flow if you're on{' '}
+            Same flow if you&apos;re on{' '}
             <code className="bs-code-inline">docker-compose.byo.yml</code> — just
             swap the file flag.
           </p>
