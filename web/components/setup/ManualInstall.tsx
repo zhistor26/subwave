@@ -25,9 +25,13 @@ export default function ManualInstall() {
           <p>
             If you don&apos;t mind a single binary on your host, the standalone
             CLI collapses these four steps into{' '}
-            <code className="bs-code-inline">subwave init &amp;&amp; subwave start &amp;&amp; subwave setup</code>{' '}
-            — see <Link href="/setup/quick-start">Quick Start</Link>. It uses
-            the same compose images and writes to the same{' '}
+            <code className="bs-code-inline">curl … | sh</code> (which chains{' '}
+            <code className="bs-code-inline">init</code> and{' '}
+            <code className="bs-code-inline">start</code> behind two Enter
+            prompts) followed by{' '}
+            <code className="bs-code-inline">subwave setup</code> — see{' '}
+            <Link href="/setup/quick-start">Quick Start</Link>. It uses the
+            same compose images and writes to the same{' '}
             <code className="bs-code-inline">state/</code> layout; nothing is
             locked in.
           </p>

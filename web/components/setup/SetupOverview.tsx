@@ -38,20 +38,24 @@ export default function SetupOverview() {
         <div className="bs-faststart">
           <p className="bs-eyebrow">THE FAST PATH</p>
           <p>
-            Already have Docker, Navidrome, and an LLM reachable? Three commands
-            from a fresh machine to an on-air station — the CLI handles the rest.
+            Already have Docker, Navidrome, and an LLM reachable? One curl, two
+            Enters, and the station is on the air — the installer chains
+            straight into <code className="bs-code-inline">init</code> and{' '}
+            <code className="bs-code-inline">start</code>, then{' '}
+            <code className="bs-code-inline">setup</code> finishes the configuration.
           </p>
           <CodeBlock>{`curl -fsSL https://cli.getsubwave.com | sh
-subwave init
 subwave setup`}</CodeBlock>
           <p className="text-muted">
-            <code className="bs-code-inline">init</code> scaffolds an install
-            dir (default <code className="bs-code-inline">~/subwave</code>) with
-            the compose file and a 3-var{' '}
-            <code className="bs-code-inline">.env</code>;{' '}
-            <code className="bs-code-inline">setup</code> asks{' '}
-            <em>prod or BYO proxy?</em>, prompts for Navidrome and your LLM,
-            boots the stack, and renders the station jingles.{' '}
+            The installer drops the <code className="bs-code-inline">subwave</code>{' '}
+            binary, then prompts <em>Run subwave init now?</em> — say yes and it
+            walks the install dir (default{' '}
+            <code className="bs-code-inline">~/subwave</code>), deployment shape
+            (prod / prod-byo), and admin credentials.{' '}
+            <code className="bs-code-inline">init</code> ends with{' '}
+            <em>Bring the stack up now?</em> — yes again brings up Docker. Then{' '}
+            <code className="bs-code-inline">setup</code> prompts for Navidrome
+            and your LLM, persists everything, and renders the station jingles.{' '}
             <Link href="/setup/quick-start" className="bs-link">
               Full walkthrough →
             </Link>

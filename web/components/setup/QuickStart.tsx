@@ -11,24 +11,32 @@ export default function QuickStart() {
     >
       <section className="bs-section">
         <p className="bs-eyebrow">PATH A · STANDALONE CLI</p>
-        <h2>One install, one command per step.</h2>
+        <h2>One curl, two Enters, on the air.</h2>
         <p>
           Drops a <code className="bs-code-inline">subwave</code> binary on your
-          host (no Node required), scaffolds an install dir, brings the stack up,
-          and runs the configuration wizard. Three commands from a fresh machine
-          to an on-air station.
+          host (no Node required), then chains straight into{' '}
+          <code className="bs-code-inline">init</code> and{' '}
+          <code className="bs-code-inline">start</code>. By the time the
+          installer finishes, Docker is up and the controller is reporting
+          on-air — <code className="bs-code-inline">setup</code> is the only
+          step left and it covers configuration, not lifecycle.
         </p>
         <div className="bs-faststart">
-          <p className="bs-eyebrow">THREE COMMANDS</p>
+          <p className="bs-eyebrow">TWO COMMANDS</p>
           <CodeBlock>{`curl -fsSL https://cli.getsubwave.com | sh
-subwave init
 subwave setup`}</CodeBlock>
           <p className="text-muted">
+            The installer prompts <em>Run subwave init now?</em> — say yes and{' '}
             <code className="bs-code-inline">init</code> asks where to install
-            (default <code className="bs-code-inline">~/subwave</code>) and which
-            deployment shape (prod / prod-byo). <code className="bs-code-inline">setup</code>{' '}
-            prompts for Navidrome + LLM + DJ persona, then boots the stack and
-            renders jingles. After that, <code className="bs-code-inline">subwave start / stop / logs / doctor</code>{' '}
+            (default <code className="bs-code-inline">~/subwave</code>),
+            deployment shape (prod / prod-byo), and admin credentials. It ends
+            with <em>Bring the stack up now?</em> — say yes again and{' '}
+            <code className="bs-code-inline">subwave start</code> runs silently
+            against the env <code className="bs-code-inline">init</code> just
+            picked. After that,{' '}
+            <code className="bs-code-inline">setup</code> prompts for Navidrome +
+            LLM + DJ persona and renders jingles. Then{' '}
+            <code className="bs-code-inline">subwave start / stop / logs / doctor</code>{' '}
             run the station from anywhere on your shell.
           </p>
         </div>

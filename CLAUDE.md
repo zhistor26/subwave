@@ -12,9 +12,9 @@ There are three operator entry points: the **standalone `subwave` CLI** (single 
 
 ```bash
 # --- standalone CLI (default — single binary, no clone, no Node host dep) ---
-curl -fsSL https://cli.getsubwave.com | sh   # installs /usr/local/bin/subwave
-subwave init                              # scaffolds ~/subwave with compose + .env
-subwave start                             # docker compose up -d
+curl -fsSL https://cli.getsubwave.com | sh   # installs /usr/local/bin/subwave; if TTY, prompts to run `subwave init` (re-execs with </dev/tty)
+subwave init                              # scaffolds ~/subwave + compose + .env; ends with a "Bring the stack up now?" confirm that chains into `start`
+subwave start                             # docker compose up -d; env auto-resolved from preferredEnv (set by init) or filesystem heuristic — no prompt
 subwave setup                             # configure Navidrome / LLM / TTS / DJ
 subwave logs controller                   # tail any service
 subwave self-update                       # re-fetch the binary from the latest release
