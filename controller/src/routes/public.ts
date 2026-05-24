@@ -107,7 +107,7 @@ router.get('/dj', async (req, res) => {
       tagline: persona?.tagline || '',
       soul: persona?.soul || '',
       frequency: persona?.frequency || 'moderate',
-      station: 'SUB/WAVE',
+      station: s.station,
       location: s.weather?.locationName || '',
     });
   } catch (err) {

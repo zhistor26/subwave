@@ -137,6 +137,9 @@ export async function runSetupCommand(): Promise<void> {
   // --- 5. Timezone ---------------------------------------------------------
   const tz = await promptTimezone();
 
+  // --- 5b. Station name ----------------------------------------------------
+  const station = await promptStationName();
+
   // --- 6. Write the root .env ---------------------------------------------
   // Setup only owns TZ and (one-time) SUBWAVE_HOMEPAGE. Admin creds and
   // SITE_URL come from init and are preserved by writeEnvFile's
@@ -155,7 +158,7 @@ export async function runSetupCommand(): Promise<void> {
   // refreshAutoPlaylist() that un-sticks the picker after a fresh install.
   // Bypassing the endpoint (the old "write files from host" flow) left the
   // controller's in-memory state stale until the next restart.
-  await pushOnboardingSave(mode, navidrome, llm);
+  await pushOnboardingSave(mode, navidrome, llm, station);
 
   // --- 8. State dir perms (standalone install only) -----------------------
   // Idempotent — safe even when running setup against an already-configured
@@ -470,6 +473,18 @@ async function promptTimezone(): Promise<string> {
   }), { backOnCancel: false });
 }
 
+// What the DJ calls the station on air — substituted into the {station}
+// placeholder in renderDjPrompt() and returned by GET /dj. Defaulting to
+// 'SUB/WAVE' matches the wizard and the historical hardcoded value.
+async function promptStationName(): Promise<string> {
+  return exitIfCancelled(await p.text({
+    message: 'Station name (what the DJ calls this radio)',
+    initialValue: 'SUB/WAVE',
+    placeholder: 'SUB/WAVE',
+    validate: (v) => (v.length > 80 ? 'Keep it to 80 characters or fewer.' : undefined),
+  }), { backOnCancel: false });
+}
+
 // ---------------------------------------------------------------------------
 // Shell-outs
 // ---------------------------------------------------------------------------
@@ -555,11 +570,12 @@ async function renderJingles(composeFile: string, env: NodeJS.ProcessEnv): Promi
 // Bypassing this endpoint (the previous "write files from the host" path)
 // left the running controller's in-memory state stale, requiring an explicit
 // `subwave restart controller` for setup to take effect.
-async function pushOnboardingSave(env: ComposeEnv, navidrome: NavidromeCreds, llm: LlmChoice): Promise<void> {
+async function pushOnboardingSave(env: ComposeEnv, navidrome: NavidromeCreds, llm: LlmChoice, station: string): Promise<void> {
   header('Saving via /onboarding/save');
 
   const body: Record<string, unknown> = {
     navidrome: { url: navidrome.url, user: navidrome.user, pass: navidrome.pass },
+    station,
   };
 
   if (llm.provider) {

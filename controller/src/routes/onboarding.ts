@@ -172,7 +172,7 @@ router.post('/onboarding/test-llm', requireAdmin, async (req, res) => {
 //     llm:      { provider, model, apiKey, ... },     // → settings.update()
 //     tts:      { defaultEngine, ... },               // → settings.update()
 //     dj:       { djPrompt, ... },                    // → settings.update()
-//     stationName: string,                            // → settings.update()
+//     station:  string,                               // → settings.update()
 //     apiKeys:  { ANTHROPIC_API_KEY, ... },           // → state/secrets.env
 //   }
 //
@@ -216,6 +216,7 @@ router.post('/onboarding/save', requireAdmin, async (req, res) => {
     if (typeof b.djPrompt === 'string') settingsPatch.djPrompt = b.djPrompt;
     if (Array.isArray(b.personas)) settingsPatch.personas = b.personas;
     if (b.weather && typeof b.weather === 'object') settingsPatch.weather = b.weather;
+    if (typeof b.station === 'string') settingsPatch.station = b.station;
     if (Object.keys(settingsPatch).length) await settings.update(settingsPatch);
 
     // Mark setup complete so the wizard exits even if Navidrome was skipped.
