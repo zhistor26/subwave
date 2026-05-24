@@ -190,6 +190,11 @@ const DEFAULTS = {
   jingleRatio: 30, // 1 jingle per N music tracks
   crossfadeDuration: 10.0, // seconds
   weather: { lat: 52.5862, lng: -2.1288, locationName: 'Wolverhampton' },
+  // Operator-facing station name. Substituted into the DJ prompt's {station}
+  // placeholder and returned by GET /dj for the landing page. The product is
+  // still called SUB/WAVE — this is what the operator's station running on it
+  // is called (e.g. "Frequency 88", "Late Shift Radio").
+  station: 'SUB/WAVE',
   // Global DJ prompt template. '' means "use DEFAULT_DJ_PROMPT_TEMPLATE".
   djPrompt: '',
   // The persona roster. One persona is "active" at a time (activePersonaId);
@@ -435,6 +440,10 @@ export async function load() {
       locationName: stored.weather?.locationName ?? DEFAULTS.weather.locationName,
     },
     djPrompt,
+    station:
+      typeof stored.station === 'string' && stored.station.trim()
+        ? stored.station.trim().slice(0, 80)
+        : DEFAULTS.station,
     personas,
     activePersonaId,
     shows,
@@ -752,6 +761,15 @@ export async function update(patch) {
       next.weather.locationName = w.locationName.trim().slice(0, 80);
     }
   }
+  if ('station' in patch) {
+    const v = String(patch.station ?? '').trim();
+    if (v === '') {
+      next.station = DEFAULTS.station;
+    } else {
+      if (v.length > 80) throw new Error('station name must be 80 chars or fewer');
+      next.station = v;
+    }
+  }
   if ('djPrompt' in patch) {
     const v = String(patch.djPrompt ?? '').trim();
     if (v === '') {
@@ -1015,7 +1033,7 @@ export function getEffectivePersona(date: Date = new Date()) {
 // {location}. {name}/{soul} come from the supplied persona; the template is
 // the global djPrompt (falling back to DEFAULT_DJ_PROMPT_TEMPLATE).
 export function renderDjPrompt(persona: any, ctx: any = {}) {
-  const station = ctx.station || 'SUB/WAVE';
+  const station = ctx.station || cache?.station || DEFAULTS.station;
   const location = ctx.location || (cache?.weather?.locationName ?? DEFAULTS.weather.locationName);
   const tpl =
     cache?.djPrompt && cache.djPrompt.trim() ? cache.djPrompt : DEFAULT_DJ_PROMPT_TEMPLATE;
@@ -1047,7 +1065,8 @@ export function renderDjPrompt(persona: any, ctx: any = {}) {
 export function agentPersonaPreamble(persona, { rules = true } = {}) {
   const name = persona?.name || 'the DJ';
   const soul = persona?.soul || '';
-  const opener = `You are ${name}, the on-air DJ for SUB/WAVE, a personal internet radio station. ${soul}`;
+  const station = cache?.station || DEFAULTS.station;
+  const opener = `You are ${name}, the on-air DJ for ${station}, a personal internet radio station. ${soul}`;
   return rules ? `${opener}` : opener;
 }
 

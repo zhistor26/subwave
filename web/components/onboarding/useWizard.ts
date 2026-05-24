@@ -160,6 +160,7 @@ export function useWizard() {
           : { enabled: false },
       },
       weather: { locationName: data.dj.locationName },
+      station: data.dj.stationName,
       apiKeys,
     };
     const r = await auth.adminFetch('/onboarding/save', {

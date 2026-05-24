@@ -28,9 +28,10 @@ const CHATTERBOX_TAG_HINT =
 // otherwise the admin-selected active persona — see settings.getEffectivePersona.
 export function djSystem() {
   const persona = settings.getEffectivePersona();
+  const s = settings.get();
   const base = settings.renderDjPrompt(persona, {
-    station: 'SUB/WAVE',
-    location: settings.get().weather?.locationName,
+    station: s.station,
+    location: s.weather?.locationName,
   });
   if (persona?.tts?.engine === 'chatterbox') return base + CHATTERBOX_TAG_HINT;
   return base;
