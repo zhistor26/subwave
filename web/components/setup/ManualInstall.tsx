@@ -98,9 +98,25 @@ $EDITOR .env`}</CodeBlock>
                 same stack minus the bundled Caddy, with web / controller / icecast bound to{' '}
                 <code className="bs-code-inline">:7700</code> /{' '}
                 <code className="bs-code-inline">:7701</code> /{' '}
-                <code className="bs-code-inline">:7702</code> for your own proxy to
-                front. <code className="bs-code-inline">docker/Caddyfile</code> is the
-                reference route table to replicate.
+                <code className="bs-code-inline">:7702</code>.
+              </p>
+              <p>
+                <strong>You must front this with a reverse proxy.</strong> The web
+                UI calls <code className="bs-code-inline">/api/*</code> and{' '}
+                <code className="bs-code-inline">/stream.mp3</code> same-origin
+                (those paths are baked into the image at build time). Without a
+                proxy routing them to the controller and Icecast, the page loads
+                but the player is dead — no metadata, no audio. Route table to
+                replicate (mirrors <code className="bs-code-inline">docker/Caddyfile</code>):
+              </p>
+              <CodeBlock>{`/stream.mp3   →  host:7702           # disable proxy buffering for live audio
+/api/*        →  host:7701/*         # strip the /api prefix
+/*            →  host:7700           # everything else → web`}</CodeBlock>
+              <p>
+                If you need separate hostnames per surface, rebuild the web image
+                with <code className="bs-code-inline">NEXT_PUBLIC_API_URL</code> and{' '}
+                <code className="bs-code-inline">NEXT_PUBLIC_STREAM_URL</code> set —
+                those are baked at build time, not runtime.
               </p>
             </div>
           </div>
