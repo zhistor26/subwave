@@ -165,6 +165,11 @@ body {
         "calt" 1,
         "ss01" 1; /* contextual + slashed zero */
     -webkit-font-smoothing: antialiased;
+    /* Catch-all against accidental horizontal overflow on mobile. `clip`
+       (not `hidden`) keeps vertical page scroll intact and still lets inner
+       scrollable areas (e.g. the weekly-schedule grid) scroll horizontally
+       inside their own `overflow-x: auto` wrappers. */
+    overflow-x: clip;
 }
 
 /* Paper grain — fixed full-viewport SVG turbulence at low opacity.
@@ -411,7 +416,7 @@ body::after {
     align-items: center;
     justify-content: center;
     gap: 14px;
-    padding: 8px 0 2px;
+    padding: 6px 0 0;
     flex-wrap: wrap;
 }
 .bs-masthead-link {
@@ -456,7 +461,7 @@ body::after {
     grid-template-columns: 1fr auto 1fr;
     align-items: end;
     gap: 24px;
-    padding: 24px 0 16px;
+    padding: 24px 0 8px;
 }
 .bs-masthead-meta {
     min-width: 0;
@@ -471,10 +476,15 @@ body::after {
     .bs-masthead-head {
         align-items: center;
         gap: 10px;
+        padding: 16px 0 4px;
     }
-    /* The VOL/NO dateline is dropped on mobile so the theme toggle, the
-       wordmark and the ON AIR status sit together on a single row. */
+    /* The VOL/NO dateline is dropped on mobile so the theme toggle and
+       the wordmark sit together on a single row. The ON AIR status is
+       hidden on mobile to keep the wordmark uncluttered. */
     .bs-masthead-issue {
+        display: none;
+    }
+    .bs-masthead-status {
         display: none;
     }
     .bs-wordmark {
@@ -804,7 +814,7 @@ body::after {
     display: flex;
     flex-direction: column;
     gap: clamp(24px, 4vw, 48px);
-    padding: clamp(24px, 5vw, 56px) 0 clamp(8px, 1.5vw, 16px);
+    padding: clamp(12px, 2.5vw, 28px) 0 clamp(8px, 1.5vw, 16px);
 }
 .bs-hero-head {
     display: flex;

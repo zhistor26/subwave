@@ -43,9 +43,9 @@ export default function TopBar({
       // its wider sm: gutters.
       className="player-topbar absolute top-0 right-0 left-0 z-20 flex items-baseline justify-between gap-3 border-b border-ink
         pt-[calc(env(safe-area-inset-top)_+_1rem)] pr-[max(1rem,env(safe-area-inset-right))]
-        pb-4 pl-[max(1rem,env(safe-area-inset-left))]
+        pb-2 pl-[max(1rem,env(safe-area-inset-left))]
         sm:pt-[calc(env(safe-area-inset-top)_+_1.5rem)] sm:pr-[max(2rem,env(safe-area-inset-right))]
-        sm:pb-6 sm:pl-[max(2rem,env(safe-area-inset-left))]"
+        sm:pb-3 sm:pl-[max(2rem,env(safe-area-inset-left))]"
     >
       <div className="flex min-w-0 items-baseline gap-2 sm:gap-[14px]">
         <span
