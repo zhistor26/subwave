@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.12](https://github.com/perminder-klair/subwave/compare/v0.1.11...v0.1.12) (2026-05-24)
+
+
+### Features
+
+* **cli:** full-stack restart option + fix rebuild on standalone installs ([809f835](https://github.com/perminder-klair/subwave/commit/809f835c2cf0919ecc158bc2941b7c17ea759092))
+* **cli:** wire `setup` through /onboarding/save + highlight Listen/Admin ([a414840](https://github.com/perminder-klair/subwave/commit/a414840f3358b6d76de9f4b8008429ebec623a3e))
+
+
+### Bug Fixes
+
+* **onboarding:** retrigger auto-playlist refresh after save ([4544f07](https://github.com/perminder-klair/subwave/commit/4544f07c80f4e86a71eec6b616341856bb3b279e))
+* **setup:** drop stale setup-config cache to honour out-of-band writes ([ae64859](https://github.com/perminder-klair/subwave/commit/ae6485947919dd30edb51a6a3b656321025f2a8a))
+
+
+### Reverts
+
+* **web:** restore pseudo-random waveform fallback for iOS Safari ([4d47925](https://github.com/perminder-klair/subwave/commit/4d4792584ce609ef6cebcd88d27d6b73fe8ae82c))
+* **web:** restore pseudo-random waveform fallback for iOS Safari ([3b7b9bd](https://github.com/perminder-klair/subwave/commit/3b7b9bd655803213ed5f8996df15cdbce34963b8))
+
 ## [0.1.11](https://github.com/perminder-klair/subwave/compare/v0.1.10...v0.1.11) (2026-05-24)
 
 
