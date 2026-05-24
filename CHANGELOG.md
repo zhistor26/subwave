@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.19](https://github.com/perminder-klair/subwave/compare/v0.1.18...v0.1.19) (2026-05-24)
+
+
+### Features
+
+* **admin/library:** tidy KPI grid and slim tracks table ([4e7d376](https://github.com/perminder-klair/subwave/commit/4e7d376d897379951cdada316b89fa7cf85163fa))
+* **web/player:** tactile press + haptics on transport controls ([7779424](https://github.com/perminder-klair/subwave/commit/77794248626b2e8e7e9f497165122e75d719ab91))
+
+
+### Bug Fixes
+
+* **web/landing:** stop mobile horizontal scroll from rotating DJ glyph ([c129c82](https://github.com/perminder-klair/subwave/commit/c129c823d6bfcd55b2011b3ac8e9fcd1e8d960bc))
+
 ## [0.1.18](https://github.com/perminder-klair/subwave/compare/v0.1.17...v0.1.18) (2026-05-24)
 
 
