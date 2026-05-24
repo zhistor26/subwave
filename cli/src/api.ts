@@ -8,7 +8,7 @@
 // (controller skips the auth gate when not in NODE_ENV=production).
 
 import { apiBaseFor, type ComposeEnv } from './compose.ts';
-import { LEGACY_CONTROLLER_ENV, ROOT_ENV, parseEnvFile, fetchErrorReason } from './util.ts';
+import { getLegacyControllerEnv, getRootEnv, parseEnvFile, fetchErrorReason } from './util.ts';
 
 export interface AdminCreds {
   user: string;
@@ -19,7 +19,7 @@ export function readAdminCreds(): AdminCreds | null {
   // Prefer the root .env (post single-compose). Fall back to the legacy
   // controller/.env so an upgrading operator who hasn't re-run setup yet still
   // gets their admin calls authenticated.
-  for (const path of [ROOT_ENV, LEGACY_CONTROLLER_ENV]) {
+  for (const path of [getRootEnv(), getLegacyControllerEnv()]) {
     const env = parseEnvFile(path);
     if (env.ADMIN_USER && env.ADMIN_PASS) {
       return { user: env.ADMIN_USER, pass: env.ADMIN_PASS };

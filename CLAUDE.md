@@ -8,17 +8,27 @@ SUB/WAVE is a personal internet radio station: one Icecast stream, all listeners
 
 ## Common commands
 
+There are three operator entry points: the **standalone `subwave` CLI** (single binary, no clone, default for new installs), raw `docker compose` (the no-CLI alternative), and `npm start` (contributor convenience inside a cloned repo). All three drive the same compose files and write to the same `state/` layout.
+
 ```bash
-# --- production (single-host, Caddy edge) — the default ---
+# --- standalone CLI (default — single binary, no clone, no Node host dep) ---
+curl -fsSL https://get.subwave.com | sh   # installs /usr/local/bin/subwave
+subwave init                              # scaffolds ~/subwave with compose + .env
+subwave start                             # docker compose up -d
+subwave setup                             # configure Navidrome / LLM / TTS / DJ
+subwave logs controller                   # tail any service
+subwave self-update                       # re-fetch the binary from the latest release
+
+# --- raw docker (no CLI) ---
 ./scripts/setup.sh                       # scaffolds a 3-var root .env + state/
-docker compose up -d                     # picks up docker-compose.yml (prod) by default
+docker compose up -d                     # docker-compose.yml (bundled Caddy prod) is the default
 # Then visit http://localhost:7700/onboarding to finish Navidrome/LLM/TTS/DJ config.
 ./scripts/update.sh                      # git pull + rebuild + rolling recreate
 
 # --- production (BYO reverse proxy: Traefik / nginx / existing Caddy) ---
 docker compose -f docker-compose.byo.yml up -d
 
-# --- dev (Mac smoke test) ---
+# --- dev (Mac smoke test, requires git clone) ---
 docker compose -f docker-compose.dev.yml up -d     # Icecast + Liquidsoap + Controller (hot-reload via tsx watch)
 cd web && npm install && npm run dev               # web UI on :7700, separate process
 
@@ -26,6 +36,8 @@ cd web && npm install && npm run dev               # web UI on :7700, separate p
 docker compose logs -f controller        # prod default
 curl http://localhost:7700/api/health    # liveness via Caddy edge (prod)
 ```
+
+The CLI resolves its install location via `SUBWAVE_HOME` (priority: `--home` flag → `SUBWAVE_HOME` env → `~/.config/subwave/config.json` → cwd if it has a `docker-compose.yml` → `~/subwave` if it exists → error). That last fallback is what makes `cd subwave-repo && npm start` work for contributors with zero config.
 
 There is no `/skip` endpoint — track-end is the only natural transition. Liquidsoap controls pacing.
 

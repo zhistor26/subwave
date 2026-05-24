@@ -118,7 +118,30 @@ of these files in `state/`:
 The web UI polls the controller over HTTP (`/now-playing`, `/state` every 5s).
 Browsers pull audio directly from Icecast.
 
-## Quick start (no clone required)
+## Quick start (CLI — recommended)
+
+```bash
+curl -fsSL https://get.subwave.com | sh    # installs `subwave` to /usr/local/bin
+subwave init                               # scaffolds ~/subwave with compose + .env
+subwave start                              # docker compose up -d
+subwave setup                              # configure Navidrome, LLM, TTS, DJ persona
+```
+
+`subwave init` asks where to install (default `~/subwave`), picks the
+deployment shape (prod / prod-byo), and writes the compose file + a 3-var
+`.env`. The standalone CLI doesn't need a clone, doesn't need Node on the host,
+and works from anywhere — `subwave status`, `subwave logs controller`,
+`subwave update`, `subwave self-update` all just work.
+
+The configuration wizard probes Navidrome and your LLM provider live, persists
+everything to `state/`, and flips the station on-air. Cloud LLM/TTS API keys
+land in `state/secrets.env` (mode 0600); Navidrome creds + the "setup done"
+flag land in `state/setup-config.json`; everything else (DJ persona, jingle
+ratio, shows) goes through the existing `settings.json`.
+
+## Quick start (no CLI, raw docker)
+
+If you'd rather skip our binary on your host and stick to `docker compose`:
 
 ```bash
 mkdir subwave && cd subwave
@@ -131,13 +154,11 @@ docker compose up -d
 # LLM, TTS, DJ persona, and offers to render jingles.
 ```
 
-The wizard probes Navidrome and your LLM provider live, persists everything to
-`state/`, and flips the station on-air. Cloud LLM/TTS API keys land in
-`state/secrets.env` (mode 0600); Navidrome creds + the "setup done" flag land
-in `state/setup-config.json`; everything else (DJ persona, jingle ratio,
-shows) goes through the existing `settings.json`.
+Functionally identical — same images, same state layout, same persistence.
+The CLI just saves you the curl-and-edit dance and gives you `subwave logs`,
+`subwave doctor`, etc. for the rest of the lifecycle.
 
-### Local dev (Mac smoke test)
+### Local dev (contributors)
 
 ```bash
 git clone https://github.com/perminder-klair/subwave.git && cd subwave
@@ -151,9 +172,10 @@ Dev compose bind-mounts `controller/src/`, `radio.liq`, and `sounds/` from the
 repo. Controller runs under `tsx watch` so `src/**` edits hot-reload inside
 the container; `radio.liq` edits just need a `docker compose -f docker-compose.dev.yml restart liquidsoap`.
 
-The operator CLI is still around — `npm start` opens the status-aware menu,
-and `npm start -- doctor` runs the diagnostic sweep. See *Common commands* in
-[`CLAUDE.md`](CLAUDE.md).
+The standalone `subwave` CLI works inside the cloned repo too — `cd subwave &&
+subwave start dev` does the right thing. The contributor convenience is `npm
+start`, which `tsx`-runs the CLI source directly so unreleased changes are
+exercised — same commands, same flags, no `npm install -g` needed.
 
 The same CLI doubles as the console for running the station. Run `npm start`
 for a status-aware menu; every menu action is also a one-shot subcommand —

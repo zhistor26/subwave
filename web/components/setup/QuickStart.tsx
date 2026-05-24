@@ -10,23 +10,26 @@ export default function QuickStart() {
       current="/setup/quick-start"
     >
       <section className="bs-section">
-        <p className="bs-eyebrow">PATH A · INTERACTIVE WIZARD</p>
-        <h2>Answer a few questions, get a running stack.</h2>
+        <p className="bs-eyebrow">PATH A · STANDALONE CLI</p>
+        <h2>One install, one command per step.</h2>
         <p>
-          A terminal wizard that writes the env files, brings up the right compose file, and
-          renders the station jingles. Requires Node 20+ and Docker.
+          Drops a <code className="bs-code-inline">subwave</code> binary on your
+          host (no Node required), scaffolds an install dir, brings the stack up,
+          and runs the configuration wizard. Three commands from a fresh machine
+          to an on-air station.
         </p>
         <div className="bs-faststart">
-          <p className="bs-eyebrow">FOUR COMMANDS</p>
-          <CodeBlock>{`git clone https://github.com/perminder-klair/subwave.git
-cd subwave
-npm install
-npm run setup`}</CodeBlock>
+          <p className="bs-eyebrow">THREE COMMANDS</p>
+          <CodeBlock>{`curl -fsSL https://get.subwave.com | sh
+subwave init
+subwave setup`}</CodeBlock>
           <p className="text-muted">
-            Its first question is <em>dev or prod?</em> Then it prompts
-            for Navidrome and Ollama, runs{' '}
-            <code className="bs-code-inline">scripts/setup.sh</code>, boots the
-            stack, and generates jingles.
+            <code className="bs-code-inline">init</code> asks where to install
+            (default <code className="bs-code-inline">~/subwave</code>) and which
+            deployment shape (prod / prod-byo). <code className="bs-code-inline">setup</code>{' '}
+            prompts for Navidrome + LLM + DJ persona, then boots the stack and
+            renders jingles. After that, <code className="bs-code-inline">subwave start / stop / logs / doctor</code>{' '}
+            run the station from anywhere on your shell.
           </p>
         </div>
         <div className="bs-devprod">

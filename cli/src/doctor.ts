@@ -13,8 +13,8 @@ import { resolve } from 'node:path';
 import { detectCompose, isProdEnv, streamUrlFor, type ComposeStatus } from './compose.ts';
 import { dockerDaemonOk, composeExec } from './docker.ts';
 import { makeClient } from './api.ts';
-import { LEGACY_CONTROLLER_ENV, ROOT_ENV, parseEnvFile, REPO_ROOT, STATE_DIR, fetchErrorReason } from './util.ts';
-import { whoHolds7700, readWebDevPid, WEB_DEV_LOG, isWebDevCommand } from './web-dev.ts';
+import { getLegacyControllerEnv, getRootEnv, parseEnvFile, getStateDir, fetchErrorReason } from './util.ts';
+import { whoHolds7700, readWebDevPid, getWebDevLog, isWebDevCommand } from './web-dev.ts';
 
 export type Status = 'ok' | 'warn' | 'fail' | 'skip';
 
@@ -182,8 +182,8 @@ async function checkController(compose: ComposeStatus): Promise<Finding[]> {
   // warn in dev (auth is optional there). Root .env is the source of truth;
   // we also check the legacy controller/.env so an upgrader with old config
   // doesn't get a confusing "missing" warning while their stack is still up.
-  const rootEnv = parseEnvFile(ROOT_ENV);
-  const legacyEnv = parseEnvFile(LEGACY_CONTROLLER_ENV);
+  const rootEnv = parseEnvFile(getRootEnv());
+  const legacyEnv = parseEnvFile(getLegacyControllerEnv());
   const credSource =
     rootEnv.ADMIN_USER && rootEnv.ADMIN_PASS ? '.env' :
     legacyEnv.ADMIN_USER && legacyEnv.ADMIN_PASS ? 'controller/.env (legacy)' : null;
@@ -324,7 +324,7 @@ async function checkWebDev(): Promise<Finding[]> {
       label: 'http://localhost:7700',
       status: 'fail',
       detail: reason,
-      hint: `Next.js may still be compiling on first load — check \`${WEB_DEV_LOG}\`.`,
+      hint: `Next.js may still be compiling on first load — check \`${getWebDevLog()}\`.`,
     });
   }
 
@@ -335,7 +335,7 @@ function checkState(): Finding[] {
   const out: Finding[] = [];
   const required = ['voice', 'jingles', 'sessions', 'logs', 'archive'];
 
-  if (!existsSync(STATE_DIR)) {
+  if (!existsSync(getStateDir())) {
     out.push({
       label: 'state/',
       status: 'fail',
@@ -345,7 +345,7 @@ function checkState(): Finding[] {
     return out;
   }
 
-  if (!isWritable(STATE_DIR)) {
+  if (!isWritable(getStateDir())) {
     out.push({
       label: 'state/',
       status: 'fail',
@@ -357,7 +357,7 @@ function checkState(): Finding[] {
   out.push({ label: 'state/', status: 'ok', detail: 'writable' });
 
   for (const sub of required) {
-    const path = resolve(STATE_DIR, sub);
+    const path = resolve(getStateDir(), sub);
     if (!existsSync(path)) {
       out.push({ label: `state/${sub}`, status: 'warn', detail: 'missing — will be created on first write' });
     } else if (!isWritable(path)) {
@@ -372,7 +372,7 @@ function checkState(): Finding[] {
 function checkContent(): Finding[] {
   const out: Finding[] = [];
 
-  const autoPath = resolve(STATE_DIR, 'auto.m3u');
+  const autoPath = resolve(getStateDir(), 'auto.m3u');
   if (!existsSync(autoPath)) {
     out.push({
       label: 'auto.m3u',
@@ -393,8 +393,8 @@ function checkContent(): Finding[] {
     }
   }
 
-  const jinglesM3u = resolve(STATE_DIR, 'jingles.m3u');
-  const jinglesDir = resolve(STATE_DIR, 'jingles');
+  const jinglesM3u = resolve(getStateDir(), 'jingles.m3u');
+  const jinglesDir = resolve(getStateDir(), 'jingles');
   if (!existsSync(jinglesM3u)) {
     out.push({
       label: 'jingles.m3u',
@@ -431,7 +431,7 @@ function checkContent(): Finding[] {
 }
 
 function checkLogs(compose: ComposeStatus): Finding[] {
-  const radioLog = resolve(STATE_DIR, 'logs', 'radio.log');
+  const radioLog = resolve(getStateDir(), 'logs', 'radio.log');
   // 64 KB of tail is plenty for "errors in the last few minutes" —
   // Liquidsoap is chatty but not absurdly so.
   const TAIL_BYTES = 64 * 1024;
@@ -499,7 +499,7 @@ function isWritable(path: string): boolean {
 // Convenience for the future watch dashboard: scan state/sessions for the
 // most recent archive. Not used by v1 doctor but cheap to expose.
 export function newestSessionFile(): { id: string; mtime: number } | null {
-  const dir = resolve(STATE_DIR, 'sessions');
+  const dir = resolve(getStateDir(), 'sessions');
   if (!existsSync(dir)) return null;
   const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
   if (files.length === 0) return null;

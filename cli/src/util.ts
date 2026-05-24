@@ -3,32 +3,34 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
+import { requireSubwaveHome } from './home.ts';
 
-// Repo root resolved from this file's location. Stable regardless of cwd.
-//   cli/src/util.ts → cli/src → cli → <repo root>
-export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+// SUBWAVE_HOME — where the operator's install lives.
+//
+// Lazy + memoised: resolution only happens the first time a path is read,
+// so `subwave init` (which doesn't yet have a home) and `subwave --version`
+// can short-circuit before triggering the resolver. cli.ts strips any
+// `--home <path>` flag from argv and parks it on process.env.SUBWAVE_HOME
+// before any consumer code runs, so the resolver sees a single source of
+// truth.
+let _subwaveHome: string | null = null;
+export function getSubwaveHome(): string {
+  if (_subwaveHome === null) _subwaveHome = requireSubwaveHome().home;
+  return _subwaveHome;
+}
 
-export const SCRIPTS_DIR = resolve(REPO_ROOT, 'scripts');
-// Single root .env (post single-compose refactor) — replaces the old
-// docker/.env + controller/.env pair. Three vars are required to boot;
-// everything else is collected by the wizard and persisted under state/.
-export const ROOT_ENV = resolve(REPO_ROOT, '.env');
-export const ROOT_ENV_EXAMPLE = resolve(REPO_ROOT, '.env.example');
-export const STATE_DIR = resolve(REPO_ROOT, 'state');
-
-// Wizard-managed overlays under state/. These mirror the browser wizard's
-// targets so both flows converge on the same persistence layer.
-//   setup-config.json — Navidrome creds + setupCompletedAt timestamp
-//   secrets.env       — cloud LLM/TTS API keys (mode 0600)
-export const SETUP_CONFIG_PATH = resolve(STATE_DIR, 'setup-config.json');
-export const SECRETS_ENV_PATH = resolve(STATE_DIR, 'secrets.env');
-
-// Legacy paths — kept exported so doctor.ts / migration shims can warn about
-// them, but no fresh write path targets these anymore.
-export const LEGACY_CONTROLLER_ENV = resolve(REPO_ROOT, 'controller', '.env');
-export const LEGACY_DOCKER_ENV = resolve(REPO_ROOT, 'docker', '.env');
+// Path accessors. Always call these — never cache the return value at
+// module load time, since that would force home resolution at import time
+// (which breaks `subwave init`, where there's no home yet).
+export function getScriptsDir(): string { return resolve(getSubwaveHome(), 'scripts'); }
+export function getRootEnv(): string { return resolve(getSubwaveHome(), '.env'); }
+export function getRootEnvExample(): string { return resolve(getSubwaveHome(), '.env.example'); }
+export function getStateDir(): string { return resolve(getSubwaveHome(), 'state'); }
+export function getSetupConfigPath(): string { return resolve(getStateDir(), 'setup-config.json'); }
+export function getSecretsEnvPath(): string { return resolve(getStateDir(), 'secrets.env'); }
+export function getLegacyControllerEnv(): string { return resolve(getSubwaveHome(), 'controller', '.env'); }
+export function getLegacyDockerEnv(): string { return resolve(getSubwaveHome(), 'docker', '.env'); }
 
 export function expandHome(p: string): string {
   if (p.startsWith('~/')) return resolve(homedir(), p.slice(2));
@@ -126,9 +128,10 @@ export interface SetupConfig {
 }
 
 export function readSetupConfig(): SetupConfig {
-  if (!existsSync(SETUP_CONFIG_PATH)) return {};
+  const p = getSetupConfigPath();
+  if (!existsSync(p)) return {};
   try {
-    return JSON.parse(readFileSync(SETUP_CONFIG_PATH, 'utf8')) as SetupConfig;
+    return JSON.parse(readFileSync(p, 'utf8')) as SetupConfig;
   } catch {
     return {};
   }
@@ -141,8 +144,9 @@ export function writeSetupConfig(patch: Partial<SetupConfig>): SetupConfig {
     ...patch,
     navidrome: { ...(current.navidrome || {}), ...(patch.navidrome || {}) },
   };
-  mkdirSync(dirname(SETUP_CONFIG_PATH), { recursive: true });
-  writeFileWithRecover(SETUP_CONFIG_PATH, JSON.stringify(next, null, 2));
+  const p = getSetupConfigPath();
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileWithRecover(p, JSON.stringify(next, null, 2));
   return next;
 }
 
@@ -182,7 +186,7 @@ function chownStateDirToCurrentUser(): boolean {
   if (uid === undefined || gid === undefined) return false; // non-POSIX
   const r = spawnSync(
     'docker',
-    ['run', '--rm', '-v', `${STATE_DIR}:/state`, 'alpine', 'chown', '-R', `${uid}:${gid}`, '/state'],
+    ['run', '--rm', '-v', `${getStateDir()}:/state`, 'alpine', 'chown', '-R', `${uid}:${gid}`, '/state'],
     { stdio: 'pipe' },
   );
   return r.status === 0;
@@ -206,9 +210,10 @@ export const WIZARD_SECRET_KEYS = [
 // any keys the operator added by hand. Same shape the controller's
 // saveSecrets() writes, so the next controller boot picks them up.
 export function writeSecretsEnv(patch: Record<string, string>): void {
+  const p = getSecretsEnvPath();
   const current: Record<string, string> = {};
-  if (existsSync(SECRETS_ENV_PATH)) {
-    for (const rawLine of readFileSync(SECRETS_ENV_PATH, 'utf8').split('\n')) {
+  if (existsSync(p)) {
+    for (const rawLine of readFileSync(p, 'utf8').split('\n')) {
       const line = rawLine.trim();
       if (!line || line.startsWith('#')) continue;
       const eq = line.indexOf('=');
@@ -230,10 +235,10 @@ export function writeSecretsEnv(patch: Record<string, string>): void {
     ...Object.entries(current).map(([k, v]) => `${k}=${v}`),
     '',
   ].join('\n');
-  mkdirSync(dirname(SECRETS_ENV_PATH), { recursive: true });
-  writeFileWithRecover(SECRETS_ENV_PATH, body);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileWithRecover(p, body);
   try {
-    chmodSync(SECRETS_ENV_PATH, 0o600);
+    chmodSync(p, 0o600);
   } catch {
     // chmod may fail on non-POSIX filesystems (e.g. Windows host) — non-fatal.
   }

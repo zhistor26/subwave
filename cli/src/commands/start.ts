@@ -8,7 +8,7 @@
 //     existing setup.mjs behaviour).
 //   - Poll /health for up to 30 s and report when the stream comes on-air.
 
-import { COMPOSE_FILES, detectCompose, webBaseFor, type ComposeEnv, type ComposeFile } from '../compose.ts';
+import { getComposeFiles, detectCompose, webBaseFor, type ComposeEnv, type ComposeFile } from '../compose.ts';
 import { composeUp } from '../docker.ts';
 import { waitForHealth } from '../api.ts';
 import { loadConfig, saveConfig } from '../config.ts';
@@ -106,7 +106,7 @@ export async function runStartCommand(opts: StartOpts = {}): Promise<void> {
 async function pickEnv(arg?: StartableEnv): Promise<ComposeFile | null> {
   // Honour the explicit arg first.
   if (arg) {
-    const match = COMPOSE_FILES.find((f) => f.env === arg);
+    const match = getComposeFiles().find((f) => f.env === arg);
     if (!match) {
       err(`unknown env: ${arg}`);
       return null;
@@ -136,5 +136,5 @@ async function pickEnv(arg?: StartableEnv): Promise<ComposeFile | null> {
       },
     ],
   }));
-  return COMPOSE_FILES.find((f) => f.env === choice) ?? null;
+  return getComposeFiles().find((f) => f.env === choice) ?? null;
 }

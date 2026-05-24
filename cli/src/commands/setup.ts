@@ -37,10 +37,10 @@ import { accessSync, constants, existsSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import {
-  LEGACY_CONTROLLER_ENV,
-  REPO_ROOT,
-  ROOT_ENV,
-  ROOT_ENV_EXAMPLE,
+  getLegacyControllerEnv,
+  getSubwaveHome,
+  getRootEnv,
+  getRootEnvExample,
   parseEnvFile,
   readSetupConfig,
   writeEnvFile,
@@ -48,7 +48,7 @@ import {
   writeSetupConfig,
   have,
 } from '../util.ts';
-import { COMPOSE_FILES, isProdEnv, webBaseFor, streamUrlFor, apiBaseFor, type ComposeEnv } from '../compose.ts';
+import { getComposeFiles, isProdEnv, webBaseFor, streamUrlFor, apiBaseFor, type ComposeEnv } from '../compose.ts';
 import { dockerDaemonOk, composeUp } from '../docker.ts';
 import { makeClient, waitForHealth } from '../api.ts';
 import {
@@ -106,7 +106,7 @@ export async function runSetupCommand(): Promise<void> {
   await preflight();
 
   // --- 3. STATE_DIR (prod-style modes only) -------------------------------
-  let stateDir = resolve(REPO_ROOT, 'state');
+  let stateDir = resolve(getSubwaveHome(), 'state');
   if (isProdEnv(mode)) {
     stateDir = await promptStateDir();
   }
@@ -141,9 +141,9 @@ export async function runSetupCommand(): Promise<void> {
   };
   if (siteUrl) envValues.SITE_URL = siteUrl;
   // Preserve SUBWAVE_HOMEPAGE if already set; otherwise default to `player`.
-  const existingRoot = parseEnvFile(ROOT_ENV);
+  const existingRoot = parseEnvFile(getRootEnv());
   if (!existingRoot.SUBWAVE_HOMEPAGE) envValues.SUBWAVE_HOMEPAGE = 'player';
-  writeEnvFile(ROOT_ENV, envValues, { templateFallback: ROOT_ENV_EXAMPLE });
+  writeEnvFile(getRootEnv(), envValues, { templateFallback: getRootEnvExample() });
   ok(`wrote ${pc.dim('.env')} (${Object.keys(envValues).length} keys)`);
 
   // --- 8b. Persist Navidrome creds to state/setup-config.json ------------
@@ -180,7 +180,7 @@ export async function runSetupCommand(): Promise<void> {
 
   // --- 11. Bring the stack up ---------------------------------------------
   const composeEnv: ComposeEnv = mode;
-  const file = COMPOSE_FILES.find((f) => f.env === mode);
+  const file = getComposeFiles().find((f) => f.env === mode);
   if (!file) {
     err(`unknown mode: ${mode}`);
     return;
@@ -276,8 +276,8 @@ async function pickMode(): Promise<Mode> {
   // If a previous install left a .env (or the legacy controller/.env) behind,
   // the operator is re-running setup. Surface that — collectAdmin /
   // collectNavidrome pre-fill from whichever source they find.
-  const root = parseEnvFile(ROOT_ENV);
-  const legacy = parseEnvFile(LEGACY_CONTROLLER_ENV);
+  const root = parseEnvFile(getRootEnv());
+  const legacy = parseEnvFile(getLegacyControllerEnv());
   const existingSource = Object.keys(root).length > 0
     ? '.env'
     : Object.keys(legacy).length > 0
@@ -287,26 +287,35 @@ async function pickMode(): Promise<Mode> {
     const count = Object.keys(root).length || Object.keys(legacy).length;
     muted(`Existing ${existingSource} detected (${count} keys). You can keep the values or reconfigure as you go.`);
   }
-  return exitIfCancelled(await p.select({
+
+  // Dev mode needs the cloned source (controller/, web/, scripts/) — hide it
+  // from operators on a standalone-CLI install where those don't exist.
+  const { isCloneMode } = await import('../home.ts');
+  const cloneMode = isCloneMode(getSubwaveHome());
+  const options: Array<{ value: Mode; label: string; hint: string }> = [
+    {
+      value: 'prod',
+      label: 'prod — server deploy with bundled Caddy',
+      hint: 'docker-compose.yml · Caddy :7700 · web baked into image',
+    },
+    {
+      value: 'prod-byo',
+      label: 'prod (BYO proxy) — Traefik / nginx / your own Caddy',
+      hint: 'docker-compose.byo.yml · web :7700 · controller :7701 · icecast :7702',
+    },
+  ];
+  if (cloneMode) {
+    options.push({
+      value: 'dev',
+      label: 'dev — local hacking',
+      hint: 'docker-compose.dev.yml · controller :7701 · web on :7700 separately',
+    });
+  }
+
+  return exitIfCancelled(await p.select<Mode>({
     message: 'How are you running SUB/WAVE?',
-    initialValue: 'prod' as const,
-    options: [
-      {
-        value: 'prod' as const,
-        label: 'prod — server deploy with bundled Caddy',
-        hint: 'docker-compose.yml · Caddy :7700 · web baked into image',
-      },
-      {
-        value: 'prod-byo' as const,
-        label: 'prod (BYO proxy) — Traefik / nginx / your own Caddy',
-        hint: 'docker-compose.byo.yml · web :7700 · controller :7701 · icecast :7702',
-      },
-      {
-        value: 'dev' as const,
-        label: 'dev — local hacking',
-        hint: 'docker-compose.dev.yml · controller :7701 · web on :7700 separately',
-      },
-    ],
+    initialValue: 'prod',
+    options,
   }), { backOnCancel: false });
 }
 
@@ -341,7 +350,7 @@ async function preflight(): Promise<void> {
 }
 
 async function promptStateDir(): Promise<string> {
-  const defaultDir = resolve(REPO_ROOT, 'state');
+  const defaultDir = resolve(getSubwaveHome(), 'state');
   const chosen = exitIfCancelled(await p.text({
     message: 'STATE_DIR (shared volume for icecast + liquidsoap + controller)',
     initialValue: defaultDir,
@@ -363,8 +372,8 @@ async function collectNavidrome(): Promise<NavidromeCreds> {
   // overrides on the root .env (NAVIDROME_*), then legacy controller/.env
   // from a pre-single-compose install. First non-empty value wins.
   const sc = readSetupConfig().navidrome || {};
-  const rootEnv = parseEnvFile(ROOT_ENV);
-  const legacy = parseEnvFile(LEGACY_CONTROLLER_ENV);
+  const rootEnv = parseEnvFile(getRootEnv());
+  const legacy = parseEnvFile(getLegacyControllerEnv());
   // The default URL reads natural in the prompt (matches what most operators
   // type), but the controller runs in Docker so a loopback URL won't resolve
   // to anything useful at runtime. We handle that with a post-probe swap
@@ -588,8 +597,8 @@ async function collectAdmin(mode: Mode): Promise<AdminCreds> {
   }
   // Root .env wins; fall back to legacy controller/.env for upgraders.
   const existing = {
-    ...parseEnvFile(LEGACY_CONTROLLER_ENV),
-    ...parseEnvFile(ROOT_ENV),
+    ...parseEnvFile(getLegacyControllerEnv()),
+    ...parseEnvFile(getRootEnv()),
   };
   const user = exitIfCancelled(await p.text({
     message: 'Admin user',
@@ -615,7 +624,7 @@ async function collectAdmin(mode: Mode): Promise<AdminCreds> {
 // operator should know their public hostname before booting.
 async function promptSiteUrl(mode: Mode): Promise<string> {
   header('Public site URL');
-  const existing = parseEnvFile(ROOT_ENV).SITE_URL;
+  const existing = parseEnvFile(getRootEnv()).SITE_URL;
   const defaultUrl =
     existing ||
     (mode === 'dev' ? 'http://localhost:7700' : '');
@@ -650,10 +659,30 @@ async function promptTimezone(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 async function runBashSetup(env: NodeJS.ProcessEnv): Promise<void> {
+  // In clone mode, scripts/setup.sh handles state perms, .env scaffolding,
+  // and web/.env.local. In standalone-CLI installs there's no scripts/ dir
+  // (and no web/ either), so we inline the only step that still matters:
+  // making sure state/ is writable by every container UID.
+  const { isCloneMode } = await import('../home.ts');
+  if (!isCloneMode(getSubwaveHome())) {
+    header('State directory perms (standalone install)');
+    const { chmodSync, mkdirSync } = await import('node:fs');
+    const stateDir = env.STATE_DIR ?? resolve(getSubwaveHome(), 'state');
+    mkdirSync(stateDir, { recursive: true });
+    try {
+      chmodSync(stateDir, 0o777);
+      ok(`chmod 777 ${stateDir}`);
+    } catch (e) {
+      warn(`could not chmod ${stateDir}: ${(e as Error).message}`);
+      muted('icecast/liquidsoap/controller may fail to write there on first boot.');
+    }
+    return;
+  }
+
   header('Rendering icecast.xml + studio audio (scripts/setup.sh)');
   await new Promise<void>((resolveP, reject) => {
     const child = spawn('bash', ['scripts/setup.sh'], {
-      cwd: REPO_ROOT,
+      cwd: getSubwaveHome(),
       env,
       stdio: 'inherit',
     });
@@ -669,10 +698,20 @@ async function runBashSetup(env: NodeJS.ProcessEnv): Promise<void> {
 }
 
 async function renderJingles(composeFile: string, env: NodeJS.ProcessEnv): Promise<void> {
+  // Jingle generation lives in scripts/generate-jingles.sh which docker-execs
+  // into the controller. Standalone installs don't have the script — defer
+  // the operator to the /onboarding wizard's jingle UI, which talks to the
+  // same controller endpoint.
+  const { isCloneMode } = await import('../home.ts');
+  if (!isCloneMode(getSubwaveHome())) {
+    muted('Skipping jingle rendering — finish at /onboarding (Jingles step) or POST /jingles per ident text you want spoken.');
+    return;
+  }
+
   header('Rendering jingles');
   await new Promise<void>((resolveP) => {
     const child = spawn('bash', ['scripts/generate-jingles.sh'], {
-      cwd: REPO_ROOT,
+      cwd: getSubwaveHome(),
       env: { ...env, COMPOSE_FILE: composeFile },
       stdio: 'inherit',
     });

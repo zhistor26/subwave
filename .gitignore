@@ -15,6 +15,10 @@ web/tsconfig.tsbuildinfo
 controller/tsconfig.tsbuildinfo
 cli/tsconfig.tsbuildinfo
 
+# Compiled CLI binaries (produced by `npm --prefix cli run build:all`).
+# Distributed via the publish-cli GitHub workflow as release assets.
+cli/dist/
+
 # Runtime state — file-based IPC, TTS output, archives, logs
 state/voice/
 state/archive/
