@@ -25,32 +25,11 @@ cli/dist/
 tui/dist/
 
 # Runtime state — file-based IPC, TTS output, archives, logs
-state/voice/
-state/archive/
-state/logs/
-state/jingles/
-state/sfx/
-state/sfx.json
-state/auto.m3u
-state/jingles.m3u
-state/next.txt
-state/say.txt
-state/intro.txt
-state/now-playing.json
-state/icecast.xml
-state/icecast-secrets.env
-state/setup-config.json
-state/secrets.env
-state/jingles.json
-state/moods.json
-state/settings.json
-state/session.json
-state/sessions/
-state/liquidsoap_*.txt
-state/queue.json
+state/
 
-# Claude Code worktrees
+# Claude Code worktrees + local runtime files
 .claude/worktrees/
+.claude/scheduled_tasks.lock
 
 # OS / editor
 .DS_Store
