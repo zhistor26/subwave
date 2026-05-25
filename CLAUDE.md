@@ -54,7 +54,7 @@ docker compose up -d --build broadcast      # after radio.liq / icecast.xml.temp
 
 `web` is a Next.js dev server in local mode (`npm run dev`), so it hot-reloads — no rebuild needed for UI changes during dev. Production builds the web image; treat it like the others there.
 
-No test runner, linter, or formatter is configured.
+No test runner is configured. `controller/` and `web/` each expose `npm run lint` (`eslint . && tsc --noEmit`); CI runs both on every PR via `.github/workflows/lint.yml` and they are the merge gate.
 
 ## Architecture
 
