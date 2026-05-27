@@ -597,7 +597,11 @@ stream_up()
 # guard the entire output so operators who don't use the archives don't pay
 # for the encoder. Bitrate is selected from a fixed set because `%mp3(bitrate=…)`
 # requires a literal int at parse time (we can't pass a ref).
-archive_path = "/var/sub-wave/archive/%Y-%m-%d/%H-00.mp3"
+# Wrap in `{time.string(...)}` so the path is a getter that re-runs strftime
+# each time `output.file` reopens (every hour via reopen_when). Passing the
+# bare string skips strftime entirely and writes everything to one literal
+# "%Y-%m-%d/%H-00.mp3" file that gets truncated at the top of each hour.
+archive_path = {time.string("/var/sub-wave/archive/%Y-%m-%d/%H-00.mp3")}
 if archive_enabled() then
   br = archive_bitrate()
   if br <= 64 then
