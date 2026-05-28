@@ -22,6 +22,7 @@ jingle_ratio = ref(30)
 crossfade_duration = ref(10.0)
 archive_enabled = ref(true)
 archive_bitrate = ref(128)
+station_name = ref("SUB/WAVE")
 
 if file.exists("/var/sub-wave/liquidsoap_jingle_ratio.txt") then
   raw = string.trim(file.contents("/var/sub-wave/liquidsoap_jingle_ratio.txt"))
@@ -46,7 +47,12 @@ if file.exists("/var/sub-wave/liquidsoap_archive_bitrate.txt") then
   if v > 0 then archive_bitrate := v end
 end
 
-log("settings loaded: jingle_ratio=#{jingle_ratio()} crossfade_duration=#{crossfade_duration()} archive_enabled=#{archive_enabled()} archive_bitrate=#{archive_bitrate()}")
+if file.exists("/var/sub-wave/liquidsoap_station_name.txt") then
+  raw = string.trim(file.contents("/var/sub-wave/liquidsoap_station_name.txt"))
+  if raw != "" then station_name := raw end
+end
+
+log("settings loaded: jingle_ratio=#{jingle_ratio()} crossfade_duration=#{crossfade_duration()} archive_enabled=#{archive_enabled()} archive_bitrate=#{archive_bitrate()} station_name=#{station_name()}")
 
 # ---------------------------------------------------------------------------
 # HTTP(S) FETCH OVERRIDE — Liquidsoap's built-in http.get.stream returns
@@ -536,7 +542,7 @@ def make_stream_outputs() =
     port=7702,
     password=environment.get("ICECAST_SOURCE_PASSWORD"),
     mount="/stream.mp3",
-    name="SUB/WAVE",
+    name=station_name(),
     description="Personal frequency from the homelab",
     genre="Various",
     url="http://localhost:7700",
@@ -559,7 +565,7 @@ def make_stream_outputs() =
     port=7702,
     password=environment.get("ICECAST_SOURCE_PASSWORD"),
     mount="/stream.opus",
-    name="SUB/WAVE",
+    name=station_name(),
     description="Personal frequency from the homelab",
     genre="Various",
     url="http://localhost:7700",

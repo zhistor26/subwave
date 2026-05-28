@@ -1151,12 +1151,12 @@ export async function update(patch) {
   }
   if ('station' in patch) {
     const v = String(patch.station ?? '').trim();
-    if (v === '') {
-      next.station = DEFAULTS.station;
-    } else {
-      if (v.length > 80) throw new Error('station name must be 80 chars or fewer');
-      next.station = v;
+    if (v.length > 80) throw new Error('station name must be 80 chars or fewer');
+    const resolved = v === '' ? DEFAULTS.station : v;
+    if (resolved !== cur.station) {
+      restart = true;
     }
+    next.station = resolved;
   }
   if ('djPrompt' in patch) {
     const v = String(patch.djPrompt ?? '').trim();
@@ -1592,12 +1592,14 @@ const LIQ_JINGLE_RATIO_PATH = `${STATE_DIR}/liquidsoap_jingle_ratio.txt`;
 const LIQ_CROSSFADE_PATH = `${STATE_DIR}/liquidsoap_crossfade.txt`;
 const LIQ_ARCHIVE_ENABLED_PATH = `${STATE_DIR}/liquidsoap_archive_enabled.txt`;
 const LIQ_ARCHIVE_BITRATE_PATH = `${STATE_DIR}/liquidsoap_archive_bitrate.txt`;
+const LIQ_STATION_NAME_PATH = `${STATE_DIR}/liquidsoap_station_name.txt`;
 
 export async function writeLiquidsoapSettings(s) {
   await writeFile(LIQ_JINGLE_RATIO_PATH, String(s.jingleRatio));
   await writeFile(LIQ_CROSSFADE_PATH, String(s.crossfadeDuration));
   await writeFile(LIQ_ARCHIVE_ENABLED_PATH, s.archive.enabled ? 'true' : 'false');
   await writeFile(LIQ_ARCHIVE_BITRATE_PATH, String(s.archive.bitrate));
+  await writeFile(LIQ_STATION_NAME_PATH, s.station || DEFAULTS.station);
 }
 
 // Called from server.js startup so the files exist before Liquidsoap reads
