@@ -171,6 +171,7 @@ router.get('/now-playing', async (req, res) => {
         name: persona?.name || 'Frequency',
         tagline: persona?.tagline || '',
         avatar: avatarUrlFor(persona?.id),
+        station: settings.get().station,
       },
       activeShow,
       session: s ? { id: s.id, kind: s.kind, startedAt: s.startedAt, show: s.show?.name || null } : null,
