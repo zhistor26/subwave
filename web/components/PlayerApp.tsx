@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { History, Mic } from 'lucide-react';
+import { CalendarClock, History, Mic } from 'lucide-react';
 import TopBar from './TopBar';
 import CenterStage from './CenterStage';
 import Waveform from './Waveform';
@@ -17,6 +17,7 @@ import { Toaster } from './ui/toaster';
 import TimelineDrawer from './drawers/TimelineDrawer';
 import BoothDrawer from './drawers/BoothDrawer';
 import RequestDrawer from './drawers/RequestDrawer';
+import ScheduleDrawer from './drawers/ScheduleDrawer';
 import { useStationFeed } from '@/hooks/useStationFeed';
 import { usePlayer } from '@/hooks/usePlayer';
 import { useMediaSession } from '@/hooks/useMediaSession';
@@ -30,6 +31,7 @@ const DRAWER_TITLES: Record<PlayerDrawer, string> = {
   timeline: 'Timeline',
   booth: 'Booth feed',
   request: 'Make a request',
+  schedule: 'Schedule',
 };
 
 export interface PlayerAppProps {
@@ -51,10 +53,33 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
     if (offline && tunedIn) stop();
   }, [offline, tunedIn, stop]);
 
+  // Persona avatar to surface on the OS lock screen while the DJ is talking.
+  // Prefer the on-air show's persona (a scheduled show can hand the hour to a
+  // different DJ); fall back to the global "active" persona from /now-playing.
+  // The controller emits a path without the `/api` prefix; prepend API_URL
+  // so this resolves the same way in prod (via Caddy) and dev (direct origin).
+  const avatarPath =
+    (typeof activeShow?.persona?.avatar === 'string' && activeShow.persona.avatar) ||
+    (typeof dj?.avatar === 'string' ? dj.avatar : '') ||
+    '';
+  const personaAvatarUrl = avatarPath ? `${API_URL}${avatarPath}` : null;
+  const personaName =
+    (typeof activeShow?.persona?.name === 'string' && activeShow.persona.name) ||
+    (typeof dj?.name === 'string' ? dj.name : '') ||
+    null;
+
   // Wire OS-level media controls (lock screen, headphones, car display).
   // No onSkip on the public listener — a stray AirPods double-tap shouldn't
   // skip the song for every other listener on the station.
-  useMediaSession({ tunedIn, nowPlaying, audioRef, onTune: tune });
+  useMediaSession({
+    tunedIn,
+    nowPlaying,
+    audioRef,
+    onTune: tune,
+    boothFeed,
+    personaAvatarUrl,
+    personaName,
+  });
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Drawers/dialogs portal here when contained so they stay inside the frame.
@@ -128,6 +153,7 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
       '1': () => setDrawer('timeline'),
       '2': () => setDrawer('booth'),
       '3': () => setDrawer('request'),
+      '4': () => setDrawer('schedule'),
       r: () => setDrawer('request'),
       '?': () => setShortcutsOpen(true),
       'mod+k': () => setPaletteOpen(o => !o),
@@ -184,6 +210,7 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
         djName={typeof dj?.name === 'string' ? dj.name : undefined}
         activeShow={activeShow}
         listeners={listeners}
+        onOpenSchedule={() => setDrawer('schedule')}
       />
 
       <CenterStage
@@ -202,6 +229,7 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
             ? state.upcoming.length
             : <History size={18} strokeWidth={1.5} />,
           booth: <Mic size={18} strokeWidth={1.5} />,
+          schedule: <CalendarClock size={18} strokeWidth={1.5} />,
         }}
         active={drawer}
         onSelect={setDrawer}
@@ -242,6 +270,7 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
             context={context}
           />
         )}
+        {drawer === 'schedule' && <ScheduleDrawer activeShow={activeShow} />}
       </Sheet>
 
       <AnimatePresence>

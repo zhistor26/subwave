@@ -70,6 +70,7 @@ interface WeatherCfg {
   lat: string;
   lng: string;
   locationName: string;
+  units: 'metric' | 'imperial';
 }
 
 interface CloudTtsCfg {
@@ -189,7 +190,7 @@ interface SettingsData {
     archive?: { enabled?: boolean; bitrate?: number };
     station?: string;
     theme?: { active?: string };
-    weather?: { lat?: number; lng?: number; locationName?: string };
+    weather?: { lat?: number; lng?: number; locationName?: string; units?: 'metric' | 'imperial' };
     tts?: {
       defaultEngine?: string;
       kokoro?: { voice?: string };
@@ -299,6 +300,7 @@ export default function SettingsPanel() {
         lat: String(v.weather?.lat ?? ''),
         lng: String(v.weather?.lng ?? ''),
         locationName: v.weather?.locationName ?? '',
+        units: v.weather?.units === 'imperial' ? 'imperial' : 'metric',
       },
       tts: {
         defaultEngine: v.tts?.defaultEngine ?? 'piper',
@@ -489,7 +491,7 @@ export default function SettingsPanel() {
   return (
     <div className="stack-mobile grid grid-cols-[240px_1fr] items-start gap-6">
       {/* Section rail */}
-      <aside className="sticky top-6 grid gap-1">
+      <aside className="grid gap-1 sm:sticky sm:top-6">
         <span className="caption pb-2">settings</span>
         {SECTIONS.map(s => {
           const isActive = activeSection === s.id;
@@ -2036,6 +2038,7 @@ function StationSection({ data, form, setForm, busy, saveSettings }: SectionProp
       lat: parseFloat(form.weather.lat),
       lng: parseFloat(form.weather.lng),
       locationName: form.weather.locationName,
+      units: form.weather.units,
     },
   });
 
@@ -2104,6 +2107,30 @@ function StationSection({ data, form, setForm, busy, saveSettings }: SectionProp
           <div className="field-hint">
             Where the station broadcasts from — sets the DJ’s {'{location}'} and the Open-Meteo
             weather it reads on air (current: {data.values?.weather?.locationName} @ {data.values?.weather?.lat}, {data.values?.weather?.lng}). Applies live.
+          </div>
+        </div>
+
+        <div className="field">
+          <Label>Weather units</Label>
+          <Select
+            value={form.weather.units}
+            onValueChange={val =>
+              setForm(f => ({
+                ...f,
+                weather: { ...f.weather, units: val === 'imperial' ? 'imperial' : 'metric' },
+              }))
+            }
+          >
+            <SelectTrigger className="w-[240px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="metric">Metric — °C</SelectItem>
+                <SelectItem value="imperial">Imperial — °F</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <div className="field-hint">
+            What the DJ announces on air (current: {data.values?.weather?.units === 'imperial' ? 'Imperial / °F' : 'Metric / °C'}). Applies live.
           </div>
         </div>
       </Card>
