@@ -829,7 +829,7 @@ body::after {
     display: flex;
     flex-direction: column;
     gap: clamp(24px, 4vw, 48px);
-    padding: clamp(12px, 2.5vw, 28px) 0 clamp(8px, 1.5vw, 16px);
+    padding: clamp(6px, 1.2vw, 14px) 0 clamp(8px, 1.5vw, 16px);
 }
 .bs-hero-head {
     display: flex;
@@ -1251,6 +1251,26 @@ body::after {
 }
 .bs-faststart p.text-muted {
     color: var(--muted);
+}
+
+/* Command reference — each command gets its own copy box, with a one-line
+   description grouped tighter than the surrounding section rhythm. */
+.bs-cmd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.bs-cmd {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bs-cmd p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+    max-width: 64ch;
 }
 
 /* Prerequisites checklist — three scannable items with a hollow accent

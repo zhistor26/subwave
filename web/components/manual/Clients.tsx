@@ -44,10 +44,15 @@ export default function Clients() {
         </p>
         <p>
           It&rsquo;s built into the operator console, so there&rsquo;s nothing separate to
-          install. From a SUB/WAVE checkout, run <code className="bs-code-inline">npm
-          start</code> and choose <strong>play</strong> — the TUI opens pointed at your stack:
+          install. With the <code className="bs-code-inline">subwave</code> CLI, run{' '}
+          <code className="bs-code-inline">subwave play</code> — the TUI is fetched on first
+          run and opens pointed at your stack:
         </p>
-        <CodeBlock>{`npm start        # then choose "play"`}</CodeBlock>
+        <CodeBlock>{`subwave play`}</CodeBlock>
+        <p className="text-muted">
+          From a SUB/WAVE checkout instead, run <code className="bs-code-inline">npm
+          start</code> and choose <strong>play</strong> — same TUI, same stack.
+        </p>
         <p className="text-muted">
           For audio it wants <code className="bs-code-inline">mpv</code> (preferred &mdash; it
           allows live volume control) or <code className="bs-code-inline">ffplay</code>; with
@@ -160,10 +165,9 @@ export default function Clients() {
           >
             github.com/bjarneo/cliamp ↗
           </a>
-          , or build it from source:
+          , or build it from source (needs Go 1.25+):
         </p>
-        <CodeBlock>{`# build from source — needs Go 1.25+
-go install github.com/bjarneo/cliamp@latest`}</CodeBlock>
+        <CodeBlock>{`go install github.com/bjarneo/cliamp@latest`}</CodeBlock>
         <p className="text-muted">
           On Linux you also want the ALSA bridge for your audio server &mdash;{' '}
           <code className="bs-code-inline">pipewire-alsa</code> or{' '}
@@ -192,12 +196,14 @@ go install github.com/bjarneo/cliamp@latest`}</CodeBlock>
             serves a steady HTTP/1.1 stream.
           </p>
         </div>
-        <CodeBlock>{`# through Cloudflare — HTTP/2, may stutter in a CLI player
-cliamp https://radio.example.co/stream.mp3
-
-# direct to the station on your network — HTTP/1.1, steady
-cliamp http://192.168.1.20:7700/stream.mp3
-cliamp http://100.x.x.x:7700/stream.mp3   # over Tailscale`}</CodeBlock>
+        <p>Through Cloudflare (HTTP/2 — may stutter in a CLI player):</p>
+        <CodeBlock>{`cliamp https://radio.example.co/stream.mp3`}</CodeBlock>
+        <p>
+          Direct to the station on your network (HTTP/1.1 — steady), or the same over
+          Tailscale:
+        </p>
+        <CodeBlock>{`cliamp http://192.168.1.20:7700/stream.mp3`}</CodeBlock>
+        <CodeBlock>{`cliamp http://100.x.x.x:7700/stream.mp3`}</CodeBlock>
       </section>
 
       <section className="bs-section">
