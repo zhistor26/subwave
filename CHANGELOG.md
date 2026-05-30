@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.30](https://github.com/perminder-klair/subwave/compare/v0.1.29...v0.1.30) (2026-05-29)
+
+
+### Bug Fixes
+
+* macOS curl|sh installer hang + publish multi-arch (arm64) images ([#206](https://github.com/perminder-klair/subwave/issues/206)) ([e782ca0](https://github.com/perminder-klair/subwave/commit/e782ca0058df53b02dd54fcb29e1ebed99dbc047))
+* **web:** split bundled command copy boxes, strip box comments ([#204](https://github.com/perminder-klair/subwave/issues/204)) ([02531af](https://github.com/perminder-klair/subwave/commit/02531af41f17825dadd559e63c3a5fc7d2d301e2))
+* **web:** tighten landing hero spacing, single-rule credits strip ([#203](https://github.com/perminder-klair/subwave/issues/203)) ([da03123](https://github.com/perminder-klair/subwave/commit/da031236acaa520fe8f1d4a389a9cc3a39df75cc))
+
 ## [0.1.29](https://github.com/perminder-klair/subwave/compare/v0.1.28...v0.1.29) (2026-05-28)
 
 
