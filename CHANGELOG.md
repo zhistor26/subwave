@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/perminder-klair/subwave/compare/v0.7.0...v0.8.0) (2026-06-03)
+
+
+### Features
+
+* **web:** animated link component for landing, nav & news ([#274](https://github.com/perminder-klair/subwave/issues/274)) ([74b7ef6](https://github.com/perminder-klair/subwave/commit/74b7ef661b62289544eace3425e5a970f336ff79))
+* **web:** reactive cover art — hover glitch, art-derived ambient wash ([#276](https://github.com/perminder-klair/subwave/issues/276)) ([2bad515](https://github.com/perminder-klair/subwave/commit/2bad515bd6bb4deabebaeebbf8cdeed84bf687e7))
+* **web:** redesign request drawer as an on-air request slip ([#275](https://github.com/perminder-klair/subwave/issues/275)) ([70803d8](https://github.com/perminder-klair/subwave/commit/70803d83777968c8396f9a094f5a446bca5a9810))
+
+
+### Bug Fixes
+
+* **controller:** keep station archive recordings out of the library & DJ ([#277](https://github.com/perminder-klair/subwave/issues/277)) ([bdf0665](https://github.com/perminder-klair/subwave/commit/bdf0665cb80e40732fb2980593b9c24203ce506c)), closes [#273](https://github.com/perminder-klair/subwave/issues/273)
+* **web:** personalise homepage link-preview with the operator's station name ([#272](https://github.com/perminder-klair/subwave/issues/272)) ([#278](https://github.com/perminder-klair/subwave/issues/278)) ([4e83988](https://github.com/perminder-klair/subwave/commit/4e83988d70018eb20e57fc9daff62f482bf23c37))
+
 ## [0.7.0](https://github.com/perminder-klair/subwave/compare/v0.6.0...v0.7.0) (2026-06-02)
 
 
