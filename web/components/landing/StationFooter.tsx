@@ -26,9 +26,13 @@ export default function StationFooter({ djName }: { djName?: string }) {
         </span>
       </div>
       <div className="pb-[6px] text-center text-[10px] tracking-[0.3em] text-muted uppercase">
-        — End of broadcast page ·{' '}
+        —{' '}
         <AnimatedLink href="/news" className="font-semibold tracking-[inherit] text-ink hover:text-vermilion">
           read the dispatches
+        </AnimatedLink>{' '}
+        ·{' '}
+        <AnimatedLink href="/stations" className="font-semibold tracking-[inherit] text-ink hover:text-vermilion">
+          browse the stations
         </AnimatedLink>{' '}
         ·{' '}
         <AnimatedLink href="/listen" className="font-semibold tracking-[inherit] text-ink hover:text-vermilion">
