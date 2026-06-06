@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.10.0](https://github.com/perminder-klair/subwave/compare/v0.9.0...v0.10.0) (2026-06-05)
+
+
+### Features
+
+* **web:** /stations community directory with live now-playing world map ([#290](https://github.com/perminder-klair/subwave/issues/290)) ([c7e7296](https://github.com/perminder-klair/subwave/commit/c7e72961a4a3a2d5a51219c2f71083bd8e0f245d))
+* **web:** render /stations map as dotted continent silhouette ([#295](https://github.com/perminder-klair/subwave/issues/295)) ([0c2bd0e](https://github.com/perminder-klair/subwave/commit/0c2bd0e1f47f3b3ac3900ed2921a444bde8bdffb))
+
+
+### Bug Fixes
+
+* **cli:** sync embedded CLI_VERSION to package version (0.9.0) ([#305](https://github.com/perminder-klair/subwave/issues/305)) ([dd01016](https://github.com/perminder-klair/subwave/commit/dd0101652cc8d2f2f1bc9c10c6435a8d0c70ba7f))
+* **controller:** emit picker output via done-tool on non-Ollama providers ([#301](https://github.com/perminder-klair/subwave/issues/301)) ([50a9d8b](https://github.com/perminder-klair/subwave/commit/50a9d8be62f25f19df5b8fb0824931b761cfe962))
+* **controller:** relax picker recency for small libraries ([#299](https://github.com/perminder-klair/subwave/issues/299)) ([00bfb93](https://github.com/perminder-klair/subwave/commit/00bfb93f59366cfdb3d1452905142ef6ff828443))
+* **controller:** set Ollama num_ctx so the DJ agent stops truncating its prompt ([#293](https://github.com/perminder-klair/subwave/issues/293)) ([d61bf14](https://github.com/perminder-klair/subwave/commit/d61bf143ea342e3c091f6ce9d0d6d29f4d604ebb)), closes [#291](https://github.com/perminder-klair/subwave/issues/291)
+* **tts-heavy:** stop baking models at build, persist HF cache across recreates ([#294](https://github.com/perminder-klair/subwave/issues/294)) ([bde0ce7](https://github.com/perminder-klair/subwave/commit/bde0ce7b4a90dc0f8fc072aec76db1066179019f))
+* **web:** disable PWA service worker in dev ([#304](https://github.com/perminder-klair/subwave/issues/304)) ([27b1b7e](https://github.com/perminder-klair/subwave/commit/27b1b7e7496b650313e6ddcf0862736ec8a21456))
+* **web:** make visualizer & volume usable on iOS Safari ([#298](https://github.com/perminder-klair/subwave/issues/298)) ([#302](https://github.com/perminder-klair/subwave/issues/302)) ([131934c](https://github.com/perminder-klair/subwave/commit/131934cda9c4344c1aabf60b7ffee22a203d3b5f))
+* **web:** shrink & lighten the mobile topbar's second line ([#292](https://github.com/perminder-klair/subwave/issues/292)) ([f785f1c](https://github.com/perminder-klair/subwave/commit/f785f1c58239e8f9243bad857c92990a355971bb))
+
+
+### Documentation
+
+* **web:** add /news dispatch announcing the stations directory ([#297](https://github.com/perminder-klair/subwave/issues/297)) ([48abb38](https://github.com/perminder-klair/subwave/commit/48abb3849ca01356ee69054161d2f1e5b15df390))
+
 ## [0.9.0](https://github.com/perminder-klair/subwave/compare/v0.8.0...v0.9.0) (2026-06-03)
 
 
