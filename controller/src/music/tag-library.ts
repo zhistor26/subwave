@@ -32,7 +32,7 @@ import { config } from '../config.js';
 import { loadSecretsIntoEnv } from '../setup/secrets.js';
 import { loadSetupConfig } from '../setup/config.js';
 import { activeModelLabel } from '../llm/provider.js';
-import { tagBatch, TAGGER_BATCH_SYSTEM } from './tagger-core.js';
+import { tagBatch, tagOne, TAGGER_BATCH_SYSTEM, type TagResult } from './tagger-core.js';
 import { runAnalysisPass } from './analyze.js';
 
 // ---------------------------------------------------------------------------
@@ -119,7 +119,24 @@ async function main() {
   await applyWizardOverlay();
   await settings.load();
 
-  const embeddingDim = embeddings.resolveEmbeddingDim();
+  if (!embeddings.isAvailable()) {
+    console.error('[tag] embeddings not available — set settings.embedding.enabled / provider');
+    process.exit(1);
+  }
+
+  // Preflight FIRST — catch the common misconfigurations (model not pulled,
+  // cloud Ollama 401, server unreachable, a chat model that can't embed) BEFORE
+  // we open the DB or walk Navidrome and burn through a 28k-track embed loop
+  // only to die on the first batch (issues #174, #319). The probe also reports
+  // the embedding dimension measured from a real vector — authoritative over the
+  // name→dim guess, so an arbitrarily-named embedding model just works.
+  const probe = await embeddings.ensureReady();
+  if (probe.code !== 'ok') {
+    console.error(`[tag] embedding preflight failed (${probe.code}):\n${probe.message}`);
+    process.exit(1);
+  }
+  const embeddingDim = probe.dim ?? embeddings.resolveEmbeddingDim();
+
   // Pass reseed so open() can recover from an embedding model/dim swap instead
   // of throwing the dim-mismatch error before the --reseed logic below ever
   // runs (the bug in #307). On a same-dim run this is a no-op.
@@ -152,20 +169,6 @@ async function main() {
     db.dropVectors();
   }
 
-  if (!embeddings.isAvailable()) {
-    console.error('[tag] embeddings not available — set settings.embedding.enabled / provider');
-    process.exit(1);
-  }
-
-  // Preflight — catch the common misconfigurations (model not pulled, cloud
-  // Ollama 401, server unreachable) BEFORE we walk Navidrome and burn through
-  // a 28k-track embed loop only to die on the first batch. Issue #174.
-  const probe = await embeddings.ensureReady();
-  if (probe.code !== 'ok') {
-    console.error(`[tag] embedding preflight failed (${probe.code}):\n${probe.message}`);
-    process.exit(1);
-  }
-
   const promptHash = embeddings.promptVocabHash(TAGGER_BATCH_SYSTEM);
   const modelLabel = activeModelLabel();
 
@@ -174,6 +177,7 @@ async function main() {
   // phases can operate purely off SQL.
   console.log('[tag] walking Navidrome library...');
   let walked = 0;
+  const liveIds = new Set<string>();
   for await (const song of subsonic.iterateAllSongs()) {
     db.upsertTrackMeta(song.id, {
       title: song.title,
@@ -183,10 +187,23 @@ async function main() {
       genre: song.genre,
       duration: song.duration,
     });
+    liveIds.add(song.id);
     walked += 1;
     if (walked % 500 === 0) console.log(`[tag] walked ${walked} tracks`);
   }
   console.log(`[tag] walked ${walked} total tracks`);
+
+  // Reconcile against the live catalogue. The walk above is complete and
+  // authoritative, so any track row it didn't see is gone from Navidrome
+  // (typically after a full rescan that re-mints IDs). Pruning the orphans
+  // keeps coverage %, untagged scope and analysis scope honest. Guarded on a
+  // non-empty walk so a transient empty Navidrome response can't wipe the DB.
+  if (walked > 0) {
+    const pruned = db.pruneMissingTracks(liveIds);
+    if (pruned > 0) {
+      console.log(`[tag] pruned ${pruned} orphaned tracks no longer in Navidrome`);
+    }
+  }
 
   // Honour --limit by capping how many NEW tracks we work on this run.
   // We do this by selecting the first N untagged ids; ones beyond the cap
@@ -540,16 +557,34 @@ async function llmTagInBatches(
       year: t.year ?? undefined,
       genre: t.genre ?? undefined,
     }));
-    let results;
+    let results: Array<TagResult | null>;
     try {
       results = await tagBatch(input);
       callCount += 1;
     } catch (err: any) {
-      console.error(`[tag] LLM batch failed (${songs.length} tracks): ${err.message}`);
-      continue;
+      // Smaller local models routinely drop entries from a 25-track list, so
+      // the batch comes back the wrong length and tagBatch throws. Don't
+      // discard the whole batch over one missing line — salvage it one track
+      // at a time. A track that still fails individually is left null (skipped
+      // below) so the next run retries it rather than stamping empty moods.
+      console.error(
+        `[tag] LLM batch failed (${songs.length} tracks): ${err.message} — falling back to per-track`,
+      );
+      results = [];
+      for (const song of input) {
+        try {
+          results.push(await tagOne(song));
+          callCount += 1;
+        } catch (oneErr: any) {
+          console.error(`[tag] per-track tag failed: ${oneErr.message}`);
+          results.push(null);
+        }
+      }
     }
     for (let j = 0; j < songs.length; j++) {
-      const { moods, energy } = results[j];
+      const result = results[j];
+      if (!result) continue;
+      const { moods, energy } = result;
       db.upsertTrackTags(songs[j].id, {
         moods,
         energy,

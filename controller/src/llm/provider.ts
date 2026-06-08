@@ -73,9 +73,10 @@ function resolveModelId(cfg) {
   );
 }
 
-// Returns an AI SDK LanguageModel for the active provider.
-export function languageModel() {
-  const cfg = llmCfg();
+// Returns an AI SDK LanguageModel for the given config (the active primary leg
+// by default). Passing an explicit cfg — the fallback leg — reuses the same
+// client cache, since the signature below already keys on every field.
+export function languageModel(cfg = llmCfg()) {
   const id = resolveModelId(cfg);
   const sig = `${cfg.provider}|${id}|${cfg.apiKey || ''}|${ollamaBaseUrl(cfg)}|${cfg.baseUrl || ''}|${cfg.reasoning ? 'r1' : 'r0'}`;
 
@@ -163,6 +164,53 @@ export function providerName() {
   return llmCfg().provider;
 }
 
+// ---------------------------------------------------------------------------
+// Legs — primary + optional fallback
+// ---------------------------------------------------------------------------
+//
+// A "leg" bundles everything a single LLM attempt needs: the resolved config
+// (so sdk.ts can pick the provider-specific structured-output path + sampling
+// from the right provider), the built AI SDK model, and a log label. The
+// failover wrapper in sdk.ts tries the primary leg, and only on a
+// host-unreachable error retries against the fallback leg. See discussion #320.
+
+export interface Leg {
+  cfg: any;       // the resolved llm config for this leg
+  model: any;     // AI SDK LanguageModel
+  label: string;  // `provider:modelId` for /debug records
+}
+
+function labelFor(cfg: any): string {
+  try {
+    return `${cfg.provider}:${resolveModelId(cfg)}`;
+  } catch {
+    return `${cfg.provider}:(unset)`;
+  }
+}
+
+// The active primary leg. Throws on a misconfigured primary (empty model on a
+// cloud provider) exactly as languageModel() does today — that's a hard error
+// the caller surfaces, not something to silently route around.
+export function primaryLeg(): Leg {
+  const cfg = llmCfg();
+  return { cfg, model: languageModel(cfg), label: labelFor(cfg) };
+}
+
+// The optional backup leg, or null when no usable fallback is configured.
+// Built lazily — only after a primary failure — so a disabled or misconfigured
+// fallback never affects healthy calls. A bad config (e.g. cloud provider with
+// no model) degrades to "no fallback" rather than throwing over the primary's
+// own error.
+export function fallbackLeg(): Leg | null {
+  const fb = settings.get().llm?.fallback;
+  if (!fb || !fb.enabled) return null;
+  try {
+    return { cfg: fb, model: languageModel(fb), label: labelFor(fb) };
+  } catch {
+    return null;
+  }
+}
+
 // The effective Ollama server URL — settings field, or the config default.
 // Used by /debug to report what the registry will actually talk to.
 export function activeOllamaUrl() {
@@ -216,17 +264,18 @@ function defaultEmbeddingModelFor(provider: string): string {
 }
 
 function defaultEmbeddingDimFor(model: string): number {
-  // Authoritative dim lookup for the default models. If the operator picks a
-  // model not in this table, library-db will reject the dim mismatch at
-  // upsert time with a friendly --reseed message.
+  // Best-effort dim guess for known model names. This is only a FALLBACK seed:
+  // the tagger probes the live server and uses the real vector length as the
+  // authoritative dim (music/embeddings.ts probeOnce → tag-library.ts), and the
+  // live controller adopts whatever dim the tagger recorded (library-db
+  // adoptStoredDim). So an unknown / arbitrarily-named embedding model still
+  // works — this table just seeds the schema before the first tag run (#319).
   if (model === 'nomic-embed-text') return 768;
   if (model === 'mxbai-embed-large') return 1024;
   if (model === 'text-embedding-3-small') return 1536;
   if (model === 'text-embedding-3-large') return 3072;
   if (model === 'text-embedding-004') return 768;
-  // Unknown model — assume the homelab default until the operator says
-  // otherwise via settings.embedding.dim.
-  return 768;
+  return 768; // homelab default until a probe says otherwise
 }
 
 export function embeddingModel() {
