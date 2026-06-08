@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.0](https://github.com/perminder-klair/subwave/compare/v0.10.0...v0.11.0) (2026-06-06)
+
+
+### Features
+
+* **skills:** editable built-in skills + swappable news feed ([#313](https://github.com/perminder-klair/subwave/issues/313)) ([f654e43](https://github.com/perminder-klair/subwave/commit/f654e4335983f0785cf65e0530ea673dceccdd07))
+* **stations:** no-fork station submissions via issue form ([#296](https://github.com/perminder-klair/subwave/issues/296)) ([#311](https://github.com/perminder-klair/subwave/issues/311)) ([8376a5d](https://github.com/perminder-klair/subwave/commit/8376a5dc23339e311b956b7c4e379bda2d06b589))
+* **web:** redesign library page + fix tag-library reseed ([#307](https://github.com/perminder-klair/subwave/issues/307)) ([#315](https://github.com/perminder-klair/subwave/issues/315)) ([d7062dc](https://github.com/perminder-klair/subwave/commit/d7062dc14e3742f7edcebca9e3c460f281410ea7))
+
+
+### Bug Fixes
+
+* **controller:** stop DJ voice segments overlapping ([#310](https://github.com/perminder-klair/subwave/issues/310)) ([#312](https://github.com/perminder-klair/subwave/issues/312)) ([938c6f5](https://github.com/perminder-klair/subwave/commit/938c6f51d11aab0e82fdf02887271af0266db4a3))
+* **web:** widen session-chat kind column to fit longest label ([#309](https://github.com/perminder-klair/subwave/issues/309)) ([9deaaf3](https://github.com/perminder-klair/subwave/commit/9deaaf3edc1288514651d230d03124ac625c60d5))
+
 ## [0.10.0](https://github.com/perminder-klair/subwave/compare/v0.9.0...v0.10.0) (2026-06-05)
 
 
