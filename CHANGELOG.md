@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.0](https://github.com/perminder-klair/subwave/compare/v0.14.0...v0.15.0) (2026-06-12)
+
+
+### Features
+
+* **app:** dock player bar across all screens + slim live now-playing ([#366](https://github.com/perminder-klair/subwave/issues/366)) ([f330155](https://github.com/perminder-klair/subwave/commit/f3301554f36b153e6e0d9c4435531848145dc92c))
+* **library:** CLAP capability warning + fix analyzer download hang ([#367](https://github.com/perminder-klair/subwave/issues/367)) ([7afdf95](https://github.com/perminder-klair/subwave/commit/7afdf95dfb5d10a38db97a1205190db1b336f3f0))
+* **library:** simplify tagging panel + structured live tagger progress ([#363](https://github.com/perminder-klair/subwave/issues/363)) ([8decd10](https://github.com/perminder-klair/subwave/commit/8decd10214fdd6876e8e66777b509e316934c9e0))
+
+
+### Documentation
+
+* **web:** announce mobile apps live + copy cleanup ([#364](https://github.com/perminder-klair/subwave/issues/364)) ([60ddd5a](https://github.com/perminder-klair/subwave/commit/60ddd5afeea83f7a0a71138d40089f72bc88aa7e))
+
 ## [0.14.0](https://github.com/perminder-klair/subwave/compare/v0.13.0...v0.14.0) (2026-06-12)
 
 
