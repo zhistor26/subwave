@@ -29,7 +29,8 @@ router.get('/library/browse', requireAdmin, async (req, res) => {
     const q = req.query || {};
     const moods = parseList(q.moods);
     const sort = (typeof q.sort === 'string' ? q.sort : 'artist') as
-      | 'artist' | 'title' | 'year' | 'taggedAt';
+      | 'artist' | 'title' | 'year' | 'taggedAt' | 'bpm' | 'loudness' | 'pace';
+    const vocal = q.vocal === 'instrumental' || q.vocal === 'vocal' ? q.vocal : null;
     const limit = parseIntSafe(q.limit, 50);
     const offset = parseIntSafe(q.offset, 0);
     const yearFrom = parseIntSafe(q.yearFrom, null);
@@ -39,6 +40,7 @@ router.get('/library/browse', requireAdmin, async (req, res) => {
       moods,
       energy: typeof q.energy === 'string' && q.energy ? q.energy : null,
       genre: typeof q.genre === 'string' && q.genre ? q.genre : null,
+      vocal,
       yearFrom,
       yearTo,
       q: typeof q.q === 'string' ? q.q : null,
@@ -147,6 +149,12 @@ router.get('/library/observatory', requireAdmin, async (req, res) => {
         bpm: t.bpm,
         musicalKey: t.musicalKey,
         analysisConfidence: t.analysisConfidence,
+        // Cheap acoustic scalars for the Observatory's colour-by + aggregate
+        // panels. The full curves/ranges stay on the per-track dossier endpoint.
+        loudnessLufs: t.loudnessLufs,
+        paceMean: library.paceMeanOf(t.pace),
+        // Tri-state: 'vocal' | 'instrumental' | null (not analysed for vocals).
+        vocal: t.vocalRanges == null ? null : t.vocalRanges.length ? 'vocal' : 'instrumental',
       }));
     res.json({
       tracks,
@@ -224,6 +232,16 @@ router.get('/library/observatory/track/:id', requireAdmin, async (req, res) => {
         musicalKey: t.musicalKey,
         introMs: t.introMs,
         analysisConfidence: t.analysisConfidence,
+        analysisVersion: t.analysisVersion,
+        // Acoustic detail — the curves/ranges the dossier's SONG SHAPE timeline
+        // draws. All null-safe; the UI hides what isn't computed. (beats/bars
+        // are deliberately omitted — too granular/heavy for the payload.)
+        loudnessLufs: t.loudnessLufs,
+        peakDb: t.peakDb,
+        structure: t.structure,
+        vocalRanges: t.vocalRanges,
+        pace: t.pace,
+        keyRanges: t.keyRanges,
       },
       textEmbedding: textVec ? Array.from(textVec) : null,
       audioEmbedding: audioVec ? Array.from(audioVec) : null,
