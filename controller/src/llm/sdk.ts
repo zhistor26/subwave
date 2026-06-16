@@ -122,9 +122,13 @@ function usageOf(result) {
 //   Map reasoning:false → 'minimal', reasoning:true → 'medium' (the SDK's
 //   documented default). Gated on the model id since reasoningEffort is a
 //   no-op or error on gpt-4 / gpt-3.5.
-// - DeepSeek / OpenRouter / Gateway: no first-class knob. DeepSeek picks
-//   reasoning by model variant (deepseek-reasoner vs -chat); OpenRouter and
-//   Gateway pass through to the underlying provider's defaults.
+// - DeepSeek: the V4 hybrid models think by default. Map the toggle onto
+//   providerOptions.deepseek.thinking ({ type: 'enabled' | 'disabled' }).
+//   reasoning:false must DISABLE it — thinking mode rejects tool_choice, so
+//   the forced-tool paths (objectViaToolCall + picker done-tool) only work
+//   with thinking off. (deepseek-reasoner always thinks regardless.)
+// - OpenRouter / Gateway: no first-class knob; pass through to the
+//   underlying provider's defaults.
 // The num_ctx that will actually be sent for this leg, or null when none is.
 // num_ctx is for LOCAL Ollama only: Ollama's default window is 4096, but the DJ
 // agent feeds ~8k+ per turn (40-turn session window + tool schemas + discovery
@@ -154,9 +158,25 @@ function samplingWithNumCtx(cfg: any, sampling: any): any {
   return sampling;
 }
 
-function providerOpts(cfg: any, { repeatPenalty = null }: { repeatPenalty?: number | null } = {}) {
+// forceNoThink: this leg forces a tool call (toolChoice:'required' — every
+// objectViaToolCall + the picker's done-tool loop). Anthropic and DeepSeek
+// both REJECT forced tool use while thinking is active (Anthropic allows only
+// auto/none with extended thinking; DeepSeek returns "Thinking mode does not
+// support this tool_choice"). The picker can't use thinking on these providers
+// regardless of the global toggle, so we suppress it on these legs only — the
+// free-text DJ calls keep whatever the operator chose. OpenAI o-series/gpt-5
+// and Gemini permit forced tools while reasoning, so they're untouched.
+function providerOpts(
+  cfg: any,
+  { repeatPenalty = null, forceNoThink = false }: { repeatPenalty?: number | null; forceNoThink?: boolean } = {},
+) {
   const llm = cfg || {};
   const reasoning = llm.reasoning === true;
+  // Effective thinking for Anthropic/DeepSeek only — suppressed on forced-tool
+  // legs because those providers reject tool_choice while thinking. Ollama,
+  // OpenAI and Gemini permit forced tools mid-reasoning, so they read the raw
+  // toggle and forceNoThink leaves them unchanged.
+  const thinkForcedSafe = reasoning && !forceNoThink;
   const model = llm.model || '';
   const opts: any = {};
 
@@ -176,12 +196,24 @@ function providerOpts(cfg: any, { repeatPenalty = null }: { repeatPenalty?: numb
     }
   }
 
-  if (reasoning && /^claude-/i.test(model)) {
+  if (thinkForcedSafe && /^claude-/i.test(model)) {
     opts.anthropic = { thinking: { type: 'adaptive' } };
   }
 
   if (/^(o\d|gpt-5)/i.test(model)) {
     opts.openai = { reasoningEffort: reasoning ? 'medium' : 'minimal' };
+  }
+
+  // DeepSeek's V4 hybrid models (deepseek-v4-flash, deepseek-chat) THINK by
+  // default. While thinking is active the API rejects tool_choice — "Thinking
+  // mode does not support this tool_choice" — which breaks every forced-tool
+  // path here (objectViaToolCall + the picker's done-tool loop, both
+  // toolChoice:'required'). Map the reasoning toggle onto the provider's
+  // documented `thinking` knob so reasoning:false explicitly disables it and
+  // the tool paths work. With reasoning:on the picker still can't force tools,
+  // so leave thinking on only for the free-text calls that don't force tools.
+  if (llm.provider === 'deepseek') {
+    opts.deepseek = { thinking: { type: thinkForcedSafe ? 'enabled' : 'disabled' } };
   }
 
   return opts;
@@ -468,7 +500,7 @@ async function objectViaToolCall(leg: any, { system, prompt, messages, schema, t
     tools: { emit },
     toolChoice: 'required',
     stopWhen: stepCountIs(1),
-    providerOptions: providerOpts(leg.cfg),
+    providerOptions: providerOpts(leg.cfg, { forceNoThink: true }),
   } as any);
   if (captured === undefined) throw new Error('model never called the emit tool');
   return { object: schema.parse(captured), usage: usageOf(result) };
@@ -604,12 +636,44 @@ export async function djObject({
   );
 }
 
+// Flatten a tool-loop result's discovery-tool trail for /debug. Excludes the
+// synthetic `done` tool — it's the schema-emit signal, not a real discovery
+// action. Shared by the native-output and done-tool branches of djAgent.
+function flattenToolCalls(result: any) {
+  return ((result.steps as any) || []).flatMap((s: any) => {
+    const results = s.toolResults || [];
+    return (s.toolCalls || [])
+      .filter((c: any) => c.toolName !== 'done')
+      .map((c: any, i: number) => ({
+        name: c.toolName,
+        args: c.input ?? c.args ?? null,
+        result: results[i]?.output ?? results[i]?.result ?? null,
+      }));
+  });
+}
+
 // Conversational tool-loop with structured output — the primitive behind the
 // session DJ agent (broadcast/dj-agent.js). A ToolLoopAgent is given the
 // music-discovery tools and a step cap, fed a `messages` array (the session
 // chat window) instead of a single prompt, and returns a schema-validated
 // final object. Throws on failure so the caller can fall back to a stateless
 // path.
+//
+// STRATEGY (two paths, picked per provider):
+//   1. Native-first (non-Ollama tool-using agents): native Output.object with
+//      AUTO tool_choice. Needs no forced tool_choice, so it sidesteps the whole
+//      "thinking mode does not support this tool_choice" class (Anthropic +
+//      DeepSeek reject forced tools while thinking). Verified 5/5 on ai@6.0.206
+//      across openai (gpt-4.1-mini), anthropic (claude-haiku-4.5), google
+//      (gemini-3.5-flash), openrouter (kimi-k2.6); deepseek needs thinking off
+//      (5/5 off vs 1/5 on — forceNoThink handles it). On any miss it falls
+//      through to (2), so worst case is the prior behaviour, never a regression.
+//      NOTE: older models still fail native (gemini-2.5-flash, llama-3.3-70b
+//      returned 0/n) — the fall-through covers them.
+//   2. Done-tool fallback (Ollama always; everyone else on a native miss): the
+//      forced-tool-calling pattern below. Ollama is excluded from native because
+//      its tool-loop Output.object returns an empty object WITHOUT calling tools
+//      (verified 0/3), so the done-tool path is the only one that works there.
 //
 // When a `schema` is provided, structured output comes from the AI SDK's
 // documented "done tool" pattern (the canonical forced tool-calling pattern at
@@ -619,39 +683,30 @@ export async function djObject({
 // every step, and prepareStep below corners the model into discovery-then-done.
 // This is used whenever the agent has tools — on EVERY provider.
 //
-// It used to be gated to Ollama only (needsToolCallObject()), with non-Ollama
-// agents taking the native Output.object path on the assumption that those
-// providers' constrained decoders interleave Output.object with tool calls
-// correctly. They don't: across OpenAI direct (gpt-4o, gpt-4o-mini), OpenRouter
-// (gemini-2.5-flash, claude-haiku-4.5), and others, ToolLoopAgent + tools +
-// Output.object consistently ends the loop without ever emitting the object —
-// the SDK throws "No output generated." and the picker falls back to the pool
-// (issue #300). The AI SDK never documents Output.object as a tool-loop output
-// strategy; the done tool is its recommended one. So tool-using agents now use
-// it everywhere, and only the schema-only (no-tools) case keeps Output.object.
+// History of the strategy split (issue #300): native Output.object inside a
+// tool loop USED to fail to emit across non-Ollama providers on older SDK +
+// model combos (the picker fell back to the pool), so the done-tool path was
+// made universal. On ai@6.0.206 that no longer holds for current models — see
+// the table below — so native is now preferred where it works (the native-first
+// branch in djAgent), with the done-tool path kept as the fallback + Ollama's
+// only working path.
 //
-// Two reasons the done-tool path is needed differ by provider but converge on
-// the same fix:
-//   - Ollama: its structured-output mode (the `format` field, surfaced as
-//     Output.object) forces schema-valid JSON *now* — incompatible with a tool
-//     loop that must call discovery first. Dropping the done tool when the
-//     ai-sdk-ollama swap landed collapsed glm-5.1:cloud from 20/20 → 0/20
-//     (returns {"id":"","reason":""} without ever calling discovery).
-//   - non-Ollama: Output.object after tool calls simply never emits (#300).
+// Why Ollama still needs the done-tool path: its tool-loop Output.object returns
+// schema-valid-but-EMPTY JSON ({"id":"","reason":""}) WITHOUT ever calling
+// discovery — verified 0/3 on glm-5.1/qwen3.5/nemotron:cloud. The done tool
+// forces discovery-then-commit, which is the only thing that works there.
 //
-// Empirical reliability across the picker-test.mjs harness (20 short runs each
-// unless noted). The Ollama rows were captured at the ai-sdk-ollama swap; the
-// non-Ollama rows below the line are the #300 reproduction — every one failed
-// to emit on the OLD Output.object path:
-//   ollama:glm-5.1:cloud         done-tool 20/20  median  8.5s  p95 23.9s
-//   ollama:kimi-k2.6:cloud       done-tool 20/20  median 31.8s  p95 55.3s
-//   ollama:nemotron-3-super:cloud (10 runs) 10/10 median 16.5s  p95 208s
-//   openai:gpt-4o                Output.object 0/n  "No output generated" (#300)
-//   openai:gpt-4o-mini           Output.object 0/n  "No output generated" (#300)
-//   openrouter:gemini-2.5-flash  Output.object 0/n  "No output generated" (#300)
-//   openrouter:claude-haiku-4.5  Output.object 0/n  "No output generated" (#300)
-// (An earlier table here recorded these models passing 5/5 on Output.object;
-// that no longer reproduces on ai@6 — an SDK-version drift, per #300.)
+// Empirical reliability (scripts/repro-native-multi.mjs + repro-ollama-native.mjs,
+// ai@6.0.206). Native = AUTO tool_choice + Output.object (thinking off):
+//   openai:gpt-4.1-mini          native 5/5
+//   anthropic:claude-haiku-4.5   native 5/5
+//   google:gemini-3.5-flash      native 5/5
+//   openrouter:kimi-k2.6         native 5/5
+//   deepseek:deepseek-v4-flash   native 5/5 (thinking off) / 1/5 (thinking on)
+//   ollama:*:cloud               native 0/3 (empty, no discovery) → done-tool
+//   ollama:glm-5.1:cloud         done-tool 4/4 (regression check, bumped SDK)
+// Older/weaker models still miss native (gemini-2.5-flash, llama-3.3-70b → 0/n);
+// the native-first branch falls through to done-tool for them.
 // The Ollama latency p95s can exceed the picker's `timeoutMs` ceiling
 // (settings.llm.agentTimeoutMs, default 45s);
 // agent.generate({ timeout }) is not honoured by the ai-sdk-ollama transport,
@@ -696,6 +751,55 @@ export async function djAgent({
           extra: { system, messages, toolCalls: [], steps: 0, response: JSON.stringify(object, null, 2) },
         };
       }
+      // ----- Native-first structured output (non-Ollama tool-using agents) -----
+      // Prefer native Output.object where it now emits reliably (see header).
+      // No forced tool_choice → no thinking conflict, and simpler than the
+      // done-tool harness. On a miss we fall through to the done-tool path.
+      if (schema != null && toolCount > 0 && !needsToolCallObject(leg.cfg)) {
+        try {
+          lastVia = 'ai-sdk:agent:native';
+          const nativeAgent = new ToolLoopAgent({
+            model: leg.model,
+            instructions: system,
+            tools,
+            stopWhen: [stepCountIs(maxSteps)],
+            temperature,
+            maxOutputTokens,
+            // Thinking off: makes deepseek reliable (5/5 vs 1/5) and is harmless
+            // elsewhere — the pick is structured extraction; the DJ's free-text
+            // (djText) still reasons.
+            providerOptions: providerOpts(leg.cfg, { forceNoThink: true }),
+            output: Output.object({ schema }),
+          } as any);
+          const nr = await withDeadline(timeoutMs, `${kind} native run`, (signal) =>
+            withTransientRetry(kind, () => nativeAgent.generate({
+              messages,
+              ...(signal ? { abortSignal: signal } : {}),
+            })));
+          const nObj = (nr as any).output;
+          const nSteps = nr.steps?.length ?? 0;
+          // The cross-provider failure signature is "emitted the object WITHOUT
+          // calling a discovery tool" (deepseek-thinking-on, ollama). Require a
+          // real discovery call so a no-explore hallucination can't slip through:
+          // the caller resolves the id against `seen`, which only tool calls
+          // populate, so an explored pick is also a resolvable one.
+          const explored = ((nr.steps as any) || []).some((s: any) => (s.toolCalls || []).length > 0);
+          if (nObj && explored) {
+            const toolCalls = flattenToolCalls(nr);
+            return {
+              value: { object: nObj, steps: nSteps, toolCalls },
+              via: lastVia,
+              sampling: samplingWithNumCtx(leg.cfg, { temperature }),
+              usage: usageOf(nr),
+              extra: { system, messages, toolCalls, steps: nSteps, response: JSON.stringify(nObj, null, 2) },
+            };
+          }
+          console.log(`[${kind}] native output produced no usable pick (explored=${explored}) — falling back to done-tool`);
+        } catch (e: any) {
+          console.log(`[${kind}] native output failed (${e?.message}) — falling back to done-tool`);
+        }
+      }
+
       // Structured output from a tool-using agent goes through the done-tool
       // path on EVERY provider; the schema-only (no-tools) case keeps native
       // Output.object off Ollama. See the header comment above for why.
@@ -747,7 +851,9 @@ export async function djAgent({
         stopWhen: [stepCountIs(maxSteps), hasToolCall('done')],
         temperature,
         maxOutputTokens,
-        providerOptions: providerOpts(leg.cfg),
+        // useDoneTool forces tool calls every step — suppress thinking on the
+        // providers that reject forced tools mid-reasoning (Anthropic/DeepSeek).
+        providerOptions: providerOpts(leg.cfg, { forceNoThink: useDoneTool }),
         ...(useDoneTool ? { toolChoice: 'required' } : {}),
         ...(prepareStep ? { prepareStep } : {}),
         // Non-Ollama path: native structured-output via Output.object. Ollama
@@ -795,7 +901,12 @@ export async function djAgent({
           stopWhen: [stepCountIs(2), hasToolCall('done')],
           temperature,
           maxOutputTokens,
-          providerOptions: providerOpts(leg.cfg),
+          // Recovery forces done-only (toolChoice:'required') every step, so it
+          // has the same Anthropic/DeepSeek thinking conflict as the main run —
+          // suppress thinking here too, or this path trips "Thinking mode does
+          // not support this tool_choice" exactly when the main run already
+          // dodged it.
+          providerOptions: providerOpts(leg.cfg, { forceNoThink: true }),
           toolChoice: 'required',
           prepareStep: async () => ({ activeTools: ['done'], toolChoice: 'required' }),
         } as any);
@@ -812,26 +923,29 @@ export async function djAgent({
         // staticToolCalls carries tool calls from the FINAL step — the SDK
         // surfaces calls that weren't executed (like our no-execute `done`) here.
         const doneCall = (result.staticToolCalls || []).find((c: any) => c.toolName === 'done');
-        if (!doneCall) throw new Error('agent did not call the done tool before stopping');
-        object = (doneCall as any).input;
+        if (doneCall) {
+          object = (doneCall as any).input;
+        } else {
+          // Salvage: some models (deepseek-v4-flash) end the forced loop emitting
+          // the answer as text/JSON instead of a `done` tool call — even after the
+          // done-only recovery. Parse it from the text and Zod-validate before
+          // giving up, mirroring djObject's free-text recovery. Only throw (→
+          // caller's pool fallback) when there's no usable JSON either.
+          try {
+            object = schema.parse(JSON.parse(extractJson(stripThinking(result.text || ''))));
+            lastVia = `${lastVia}:text`;
+          } catch {
+            throw new Error('agent did not call the done tool before stopping');
+          }
+        }
       } else if (schema) {
         object = result.output;
       } else {
         object = stripThinking(result.text);
       }
 
-      // Flatten the discovery-tool trail for /debug. Exclude `done` — it's the
-      // schema-emit signal, not a real library discovery action.
-      const toolCalls = ((result.steps as any) || []).flatMap((s: any) => {
-        const results = s.toolResults || [];
-        return (s.toolCalls || [])
-          .filter((c: any) => c.toolName !== 'done')
-          .map((c: any, i: number) => ({
-            name: c.toolName,
-            args: c.input ?? c.args ?? null,
-            result: results[i]?.output ?? results[i]?.result ?? null,
-          }));
-      });
+      // Flatten the discovery-tool trail for /debug (excludes the `done` tool).
+      const toolCalls = flattenToolCalls(result);
       return {
         value: { object, steps, toolCalls },
         via: lastVia,
