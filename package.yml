@@ -1,0 +1,13 @@
+package: cloud.lazycat.app.subwave
+version: 0.20.0
+name: SUB/WAVE
+description: 个人 AI 电台——共享直播流、AI DJ 播报、自然语言点歌
+locales:
+  zh-CN:
+    name: SUB/WAVE 电台
+    description: 自托管 AI 电台，听众同步收听，DJ 自动播报与点歌
+  en-US:
+    name: SUB/WAVE Radio
+    description: Self-hosted AI radio with shared live stream and AI DJ
+author: zhistor26
+homepage: https://www.getsubwave.com

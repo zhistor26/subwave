@@ -21,6 +21,7 @@ import ScheduleDrawer from './drawers/ScheduleDrawer';
 import { useStationFeed } from '@/hooks/useStationFeed';
 import { usePlayer } from '@/hooks/usePlayer';
 import { useSignal } from '@/hooks/useSignal';
+import { useOperatorAccess } from '@/hooks/useOperatorAccess';
 import { useMediaSession } from '@/hooks/useMediaSession';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useCoverColors } from '@/hooks/useCoverColors';
@@ -48,6 +49,7 @@ export interface PlayerAppProps {
 
 export default function PlayerApp({ contained = false }: PlayerAppProps) {
   const { apiUrl } = useStationOrigin();
+  const operator = useOperatorAccess();
   const { nowPlaying, context, dj, activeShow, listeners, streamOnline, state, session, trackStartedAt, timezone } = useStationFeed();
   const boothFeed = session.messages;
   const { audioRef, tunedIn, status, volume, setVolume, tune, stop, toggleMute, muted, idleStopped } = usePlayer();
@@ -280,6 +282,8 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
         djName={typeof dj?.name === 'string' ? dj.name : undefined}
         activeShow={activeShow}
         onOpenSchedule={openSchedule}
+        showOperatorNav={operator.isOperator}
+        needsSetup={operator.needsSetup}
       />
 
       <CenterStage
@@ -358,6 +362,7 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
         onOpenDrawer={setDrawer}
         onToggleMute={toggleMute}
         onShowShortcuts={() => setShortcutsOpen(true)}
+        showOperatorNav={operator.isOperator}
       />
 
       <ShortcutsDialog

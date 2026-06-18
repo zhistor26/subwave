@@ -1,0 +1,3 @@
+# LazyCat LPK overlay — trust ingress auth headers instead of Basic Auth.
+FROM ghcr.io/perminder-klair/subwave-controller:latest
+COPY controller/src/middleware/auth.ts /app/src/middleware/auth.ts

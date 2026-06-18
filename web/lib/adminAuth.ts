@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 const STORAGE_KEY = 'subwave_admin_auth';
+const LAZYCAT_SESSION_AUTH = '__lazycat_session__';
 
 export interface SignInResult {
   ok: boolean;
@@ -28,11 +29,31 @@ export function useAdminAuth(): AdminAuth {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setAuth(stored);
-    } catch {}
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/settings`, { credentials: 'include' });
+        if (!cancelled && r.ok) {
+          setAuth(LAZYCAT_SESSION_AUTH);
+          setNeedsAuth(false);
+          return;
+        }
+      } catch {}
+
+      if (cancelled) return;
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) setAuth(stored);
+        else setNeedsAuth(true);
+      } catch {
+        setNeedsAuth(true);
+      }
+    })().finally(() => {
+      if (!cancelled) setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Verifies the credentials against the controller before caching them.
@@ -67,14 +88,14 @@ export function useAdminAuth(): AdminAuth {
   // flips us into the sign-in flow on 401.
   const adminFetch = useCallback(async (path: string, init: RequestInit = {}): Promise<Response> => {
     const headers: Record<string, string> = { ...((init.headers as Record<string, string>) || {}) };
-    if (auth) headers.Authorization = `Basic ${auth}`;
-    const r = await fetch(`${API_URL}${path}`, { ...init, headers });
+    if (auth && auth !== LAZYCAT_SESSION_AUTH) headers.Authorization = `Basic ${auth}`;
+    const r = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: 'include' });
     if (r.status === 401) {
       // Only treat a 401 as a revoked token when we actually sent
       // credentials. A 401 on a call made before this hook instance has
       // hydrated (auth still null) must not wipe a valid token that a
       // sibling useAdminAuth instance is relying on.
-      if (auth) {
+      if (auth && auth !== LAZYCAT_SESSION_AUTH) {
         try { localStorage.removeItem(STORAGE_KEY); } catch {}
         setAuth(null);
       }

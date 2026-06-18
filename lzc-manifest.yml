@@ -1,0 +1,102 @@
+application:
+  subdomain: subwave
+  routes:
+    - /=http://caddy:80
+  public_path:
+    - /stream.mp3
+    - /stream.opus
+    - /api/health
+    - /api/now-playing
+    - /api/state
+    - /api/request
+    - /api/dj
+    - /api/themes
+    - /api/cover/
+    - /api/persona-avatar/
+    - /api/schedule
+  injects:
+    - id: lazycat-admin-api
+      on: request
+      when:
+        - /api/
+      do:
+        - src: |
+            const pub = [
+              '/api/health','/api/now-playing','/api/state','/api/request',
+              '/api/dj','/api/themes','/api/cover/','/api/persona-avatar/','/api/schedule'
+            ];
+            const path = ctx.url.pathname || '';
+            if (pub.some((p) => path === p || path.startsWith(p))) return;
+            const role = String(ctx.headers.get('x-hc-user-role') || '').toUpperCase();
+            if (role !== 'ADMIN') return;
+            if (ctx.headers.get('authorization')) return;
+            ctx.headers.set('authorization', 'Basic YWRtaW46MDI1Njc2');
+    - id: subwave-admin-ui
+      on: browser
+      when:
+        - /admin*
+        - /onboarding*
+      do:
+        - src: |
+            (async () => {
+              try {
+                const r = await fetch('/api/settings', { credentials: 'include' });
+                if (!r.ok) return;
+                document.querySelectorAll('form').forEach((f) => {
+                  if (/password|sign.?in|admin/i.test(f.textContent || '')) f.remove();
+                });
+              } catch {}
+            })();
+    - id: subwave-operator-nav
+      on: browser
+      when:
+        - /*
+        - /listen*
+      do:
+        - src: file:///lzcapp/pkg/content/lazycat-operator-nav.js
+
+services:
+  caddy:
+    image: ghcr.io/perminder-klair/subwave-caddy:latest
+    depends_on:
+      - web
+      - controller
+      - broadcast
+
+  broadcast:
+    image: ghcr.io/perminder-klair/subwave-broadcast:latest
+    environment:
+      - TZ=Asia/Shanghai
+    binds:
+      - /lzcapp/var/subwave:/var/sub-wave
+      - /lzcapp/var/subwave/logs:/var/log/liquidsoap
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:7702/status-json.xsl > /dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  controller:
+    image: ghcr.io/perminder-klair/subwave-controller:latest
+    depends_on:
+      - broadcast
+    environment:
+      - NODE_ENV=production
+      - ADMIN_USER=admin
+      - ADMIN_PASS=025676
+      - TZ=Asia/Shanghai
+      - STATE_DIR=/var/sub-wave
+      - SOUNDS_DIR=/sounds
+    binds:
+      - /lzcapp/var/subwave:/var/sub-wave
+
+  web:
+    image: ghcr.io/perminder-klair/subwave-web:latest
+    depends_on:
+      - controller
+    environment:
+      - NODE_ENV=production
+      - SUBWAVE_HOMEPAGE=player
+      - SITE_URL=https://${LAZYCAT_APP_DOMAIN}
+      - CONTROLLER_INTERNAL_URL=http://controller:7701

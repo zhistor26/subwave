@@ -22,6 +22,7 @@ export interface CommandPaletteProps {
   onOpenDrawer: (kind: PlayerDrawer) => void;
   onToggleMute: () => void;
   onShowShortcuts: () => void;
+  showOperatorNav?: boolean;
 }
 
 interface PaletteItem {
@@ -30,9 +31,8 @@ interface PaletteItem {
   onSelect: () => void;
 }
 
-/* ⌘K command palette for the listener-facing player. Scope is player
-   actions only — no jumping to admin/site routes. Each item runs its
-   handler and closes the palette. */
+/* ⌘K command palette for the listener-facing player. Operator routes are
+   included when the session can reach /api/settings (LazyCat admin inject). */
 export default function CommandPalette({
   open,
   onOpenChange,
@@ -43,11 +43,16 @@ export default function CommandPalette({
   onOpenDrawer,
   onToggleMute,
   onShowShortcuts,
+  showOperatorNav = false,
 }: CommandPaletteProps) {
   const run = (fn: () => void) => () => {
     onOpenChange(false);
     fn();
   };
+
+  const go = (href: string) => run(() => {
+    window.location.href = href;
+  });
 
   const items: PaletteItem[] = [
     { label: tunedIn ? 'Tune out' : 'Tune in', hint: 'Space', onSelect: run(onTune) },
@@ -58,6 +63,14 @@ export default function CommandPalette({
     { label: muted ? 'Unmute' : 'Mute', hint: 'M', onSelect: run(onToggleMute) },
     { label: 'Keyboard shortcuts', hint: '?', onSelect: run(onShowShortcuts) },
   ];
+
+  const operatorItems: PaletteItem[] = showOperatorNav
+    ? [
+        { label: 'Open setup wizard', hint: 'S', onSelect: go('/onboarding') },
+        { label: 'Open admin console', hint: 'A', onSelect: go('/admin') },
+        { label: 'Open player', hint: 'P', onSelect: go('/') },
+      ]
+    : [];
 
   return (
     <CommandDialog
@@ -77,6 +90,16 @@ export default function CommandPalette({
             </CommandItem>
           ))}
         </CommandGroup>
+        {operatorItems.length > 0 && (
+          <CommandGroup heading="Operator">
+            {operatorItems.map((it) => (
+              <CommandItem key={it.label} value={it.label} onSelect={it.onSelect}>
+                <span>{it.label}</span>
+                <Kbd>{it.hint}</Kbd>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   );

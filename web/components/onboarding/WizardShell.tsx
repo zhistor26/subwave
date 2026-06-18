@@ -75,6 +75,14 @@ export default function WizardShell() {
         <h1 className="mt-1 text-2xl font-semibold text-ink">
           Step {w.stepIdx + 1} of {STEP_ORDER.length}
         </h1>
+        <nav className="mt-3 flex flex-wrap gap-3 text-xs">
+          <Link href="/" className="bs-link text-ink/60">
+            ← Player
+          </Link>
+          <Link href="/admin" className="bs-link text-ink/60">
+            Admin
+          </Link>
+        </nav>
       </div>
 
       <ol className="mb-8 flex flex-wrap gap-2">

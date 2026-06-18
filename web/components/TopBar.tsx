@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+import Link from 'next/link';
 import { buildTagline } from '@/lib/tagline';
 import ThemeSwitcher from './ThemeSwitcher';
 import type { ActiveShow, StationContext } from '@/lib/types';
@@ -14,6 +15,9 @@ export interface TopBarProps {
   /** Optional — when provided, the show + host line becomes a button that
    *  opens the Schedule drawer. Omitted on Landing where there's no player. */
   onOpenSchedule?: () => void;
+  /** Show setup/admin shortcuts for operators (LazyCat admin / Basic auth). */
+  showOperatorNav?: boolean;
+  needsSetup?: boolean | null;
 }
 
 export default memo(function TopBar({
@@ -23,6 +27,8 @@ export default memo(function TopBar({
   djName,
   activeShow,
   onOpenSchedule,
+  showOperatorNav = false,
+  needsSetup = null,
 }: TopBarProps) {
   const tagline = buildTagline(context);
   // When a programmed show is on air, name it and prefer its host.
@@ -90,7 +96,31 @@ export default memo(function TopBar({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {showOperatorNav && (
+            <nav
+              className="flex items-center gap-2 border-r border-ink/15 pr-2 sm:gap-3 sm:pr-3"
+              aria-label="Operator"
+            >
+              <Link
+                href="/onboarding"
+                className={
+                  'v3-caption v3-focus whitespace-nowrap no-underline hover:underline ' +
+                  (needsSetup ? 'font-semibold text-vermilion' : 'text-muted hover:text-ink')
+                }
+                title="First-run setup & Navidrome / LLM"
+              >
+                Setup
+              </Link>
+              <Link
+                href="/admin"
+                className="v3-caption v3-focus whitespace-nowrap text-muted no-underline hover:text-ink hover:underline"
+                title="Station admin console"
+              >
+                Admin
+              </Link>
+            </nav>
+          )}
           <ThemeSwitcher variant="player" />
         </div>
       </div>
