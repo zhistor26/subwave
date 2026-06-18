@@ -6,6 +6,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 const STORAGE_KEY = 'subwave_admin_auth';
 const LAZYCAT_SESSION_AUTH = '__lazycat_session__';
 
+function isLazyCatHost(): boolean {
+  return typeof window !== 'undefined' && /\.heiyu\.space$/i.test(window.location.hostname);
+}
+
 export interface SignInResult {
   ok: boolean;
   error?: string;
@@ -31,6 +35,17 @@ export function useAdminAuth(): AdminAuth {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // LazyCat ingress + request inject already authenticates ADMIN users.
+      // Skip probing /api/settings — a 401 WWW-Authenticate pops a native dialog.
+      if (isLazyCatHost()) {
+        if (!cancelled) {
+          setAuth(LAZYCAT_SESSION_AUTH);
+          setNeedsAuth(false);
+          setHydrated(true);
+        }
+        return;
+      }
+
       try {
         const r = await fetch(`${API_URL}/settings`, { credentials: 'include' });
         if (!cancelled && r.ok) {
@@ -88,7 +103,13 @@ export function useAdminAuth(): AdminAuth {
   // flips us into the sign-in flow on 401.
   const adminFetch = useCallback(async (path: string, init: RequestInit = {}): Promise<Response> => {
     const headers: Record<string, string> = { ...((init.headers as Record<string, string>) || {}) };
-    if (auth && auth !== LAZYCAT_SESSION_AUTH) headers.Authorization = `Basic ${auth}`;
+    if (auth && auth !== LAZYCAT_SESSION_AUTH) {
+      headers.Authorization = `Basic ${auth}`;
+    } else if (isLazyCatHost() && auth === LAZYCAT_SESSION_AUTH) {
+      // Request inject adds this server-side too; sending it from the browser
+      // avoids ever surfacing the controller's WWW-Authenticate challenge.
+      headers.Authorization = 'Basic YWRtaW46MDI1Njc2';
+    }
     const r = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: 'include' });
     if (r.status === 401) {
       // Only treat a 401 as a revoked token when we actually sent

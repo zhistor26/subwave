@@ -8,12 +8,14 @@ application:
     - /api/health
     - /api/now-playing
     - /api/state
+    - /api/session
     - /api/request
     - /api/dj
     - /api/themes
     - /api/cover/
     - /api/persona-avatar/
     - /api/schedule
+    - /api/onboarding/status
   injects:
     - id: lazycat-admin-api
       on: request
@@ -22,8 +24,9 @@ application:
       do:
         - src: |
             const pub = [
-              '/api/health','/api/now-playing','/api/state','/api/request',
-              '/api/dj','/api/themes','/api/cover/','/api/persona-avatar/','/api/schedule'
+              '/api/health','/api/now-playing','/api/state','/api/session','/api/request',
+              '/api/dj','/api/themes','/api/cover/','/api/persona-avatar/','/api/schedule',
+              '/api/onboarding/status'
             ];
             const path = ctx.url.pathname || '';
             if (pub.some((p) => path === p || path.startsWith(p))) return;
@@ -31,6 +34,15 @@ application:
             if (role !== 'ADMIN') return;
             if (ctx.headers.get('authorization')) return;
             ctx.headers.set('authorization', 'Basic YWRtaW46MDI1Njc2');
+    - id: lazycat-strip-basic-challenge
+      on: response
+      when:
+        - /api/
+      do:
+        - src: |
+            // Never let the browser show a native Basic Auth dialog for API calls.
+            ctx.headers.delete('www-authenticate');
+            ctx.headers.delete('WWW-Authenticate');
     - id: subwave-admin-ui
       on: browser
       when:
@@ -38,15 +50,14 @@ application:
         - /onboarding*
       do:
         - src: |
-            (async () => {
-              try {
-                const r = await fetch('/api/settings', { credentials: 'include' });
-                if (!r.ok) return;
-                document.querySelectorAll('form').forEach((f) => {
-                  if (/password|sign.?in|admin/i.test(f.textContent || '')) f.remove();
-                });
-              } catch {}
-            })();
+            // LazyCat operators already passed the ingress login gate — hide the
+            // redundant in-app Basic Auth form. Do NOT fetch /api/settings here;
+            // a 401 + WWW-Authenticate makes the browser show a native dialog.
+            if (/\.heiyu\.space$/i.test(window.location.hostname)) {
+              document.querySelectorAll('form').forEach((f) => {
+                if (/password|sign.?in|admin/i.test(f.textContent || '')) f.remove();
+              });
+            }
     - id: subwave-operator-nav
       on: browser
       when:
@@ -85,6 +96,7 @@ services:
       - NODE_ENV=production
       - ADMIN_USER=admin
       - ADMIN_PASS=025676
+      - SUBWAVE_TRUST_LAZYCAT_AUTH=true
       - TZ=Asia/Shanghai
       - STATE_DIR=/var/sub-wave
       - SOUNDS_DIR=/sounds

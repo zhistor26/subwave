@@ -1,5 +1,5 @@
 package: cloud.lazycat.app.subwave
-version: 0.20.0
+version: 0.20.1
 name: SUB/WAVE
 description: 个人 AI 电台——共享直播流、AI DJ 播报、自然语言点歌
 locales:

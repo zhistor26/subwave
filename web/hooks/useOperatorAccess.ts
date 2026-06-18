@@ -4,16 +4,19 @@ import { useEffect, useState } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
+function isLazyCatHost(): boolean {
+  return typeof window !== 'undefined' && /\.heiyu\.space$/i.test(window.location.hostname);
+}
+
 export interface OperatorAccess {
-  /** True when /api/settings accepts the current session (LazyCat inject or Basic). */
+  /** True when /api/settings accepts the current session (LazyCat ingress or Basic). */
   isOperator: boolean;
   /** null until probed; true while first-run wizard is still required. */
   needsSetup: boolean | null;
   ready: boolean;
 }
 
-// Lightweight probe for operator-only chrome on the public player. Mirrors the
-// lazycat-aware path in adminAuth (credentials: 'include' + ingress inject).
+// Lightweight probe for operator-only chrome on the public player.
 export function useOperatorAccess(): OperatorAccess {
   const [isOperator, setIsOperator] = useState(false);
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
@@ -22,6 +25,16 @@ export function useOperatorAccess(): OperatorAccess {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // On LazyCat, show operator nav without probing protected APIs — bare
+      // fetch('/api/settings') can trigger the browser's HTTP Basic dialog.
+      if (isLazyCatHost()) {
+        if (!cancelled) {
+          setIsOperator(true);
+          setReady(true);
+        }
+        return;
+      }
+
       try {
         const r = await fetch(`${API_URL}/settings`, { credentials: 'include' });
         if (cancelled) return;
@@ -35,10 +48,10 @@ export function useOperatorAccess(): OperatorAccess {
             setNeedsSetup(!!j.needsSetup);
           }
         } catch {
-          /* onboarding status is best-effort */
+          /* best-effort */
         }
       } catch {
-        /* public listener — no operator chrome */
+        /* public listener */
       } finally {
         if (!cancelled) setReady(true);
       }
