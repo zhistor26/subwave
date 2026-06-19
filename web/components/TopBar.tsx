@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import Link from 'next/link';
 import { buildTagline } from '@/lib/tagline';
+import { ADMIN_CONSOLE_HREF, setupHref } from '@/lib/operatorNav';
 import ThemeSwitcher from './ThemeSwitcher';
 import type { ActiveShow, StationContext } from '@/lib/types';
 
@@ -34,6 +35,7 @@ export default memo(function TopBar({
   // When a programmed show is on air, name it and prefer its host.
   const showName = activeShow?.name || null;
   const onAirName = activeShow?.persona?.name || djName;
+  const setupTarget = setupHref(needsSetup);
   return (
     <div
       // viewport-fit=cover lets the header extend under the iPhone notch /
@@ -103,17 +105,17 @@ export default memo(function TopBar({
               aria-label="Operator"
             >
               <Link
-                href="/onboarding"
+                href={setupTarget}
                 className={
                   'v3-caption v3-focus whitespace-nowrap no-underline hover:underline ' +
                   (needsSetup ? 'font-semibold text-vermilion' : 'text-muted hover:text-ink')
                 }
-                title="First-run setup & Navidrome / LLM"
+                title={needsSetup ? 'Finish first-run setup' : 'Station settings'}
               >
                 Setup
               </Link>
               <Link
-                href="/admin"
+                href={ADMIN_CONSOLE_HREF}
                 className="v3-caption v3-focus whitespace-nowrap text-muted no-underline hover:text-ink hover:underline"
                 title="Station admin console"
               >

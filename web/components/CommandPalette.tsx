@@ -9,6 +9,7 @@ import {
   CommandItem,
 } from './ui/command';
 import { Kbd } from './ui/kbd';
+import { ADMIN_CONSOLE_HREF, setupHref } from '@/lib/operatorNav';
 
 export type PlayerDrawer = 'timeline' | 'booth' | 'request' | 'schedule';
 
@@ -23,6 +24,7 @@ export interface CommandPaletteProps {
   onToggleMute: () => void;
   onShowShortcuts: () => void;
   showOperatorNav?: boolean;
+  needsSetup?: boolean | null;
 }
 
 interface PaletteItem {
@@ -44,6 +46,7 @@ export default function CommandPalette({
   onToggleMute,
   onShowShortcuts,
   showOperatorNav = false,
+  needsSetup = null,
 }: CommandPaletteProps) {
   const run = (fn: () => void) => () => {
     onOpenChange(false);
@@ -66,8 +69,12 @@ export default function CommandPalette({
 
   const operatorItems: PaletteItem[] = showOperatorNav
     ? [
-        { label: 'Open setup wizard', hint: 'S', onSelect: go('/onboarding') },
-        { label: 'Open admin console', hint: 'A', onSelect: go('/admin') },
+        {
+          label: needsSetup ? 'Open setup wizard' : 'Open settings',
+          hint: 'S',
+          onSelect: go(setupHref(needsSetup)),
+        },
+        { label: 'Open admin console', hint: 'A', onSelect: go(ADMIN_CONSOLE_HREF) },
         { label: 'Open player', hint: 'P', onSelect: go('/') },
       ]
     : [];

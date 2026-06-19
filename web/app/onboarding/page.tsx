@@ -53,7 +53,7 @@ export default function SetupPage() {
       </p>
       <div className="mt-6 flex gap-3">
         <Link
-          href="/admin"
+          href="/admin/dash"
           className="rounded border border-ink bg-ink px-4 py-2 text-sm font-medium tracking-wide text-bg uppercase hover:opacity-90"
         >
           Admin
@@ -63,6 +63,12 @@ export default function SetupPage() {
           className="rounded border border-ink px-4 py-2 text-sm font-medium tracking-wide text-ink uppercase hover:bg-ink/10"
         >
           Player
+        </Link>
+        <Link
+          href="/admin/settings"
+          className="rounded border border-ink/40 px-4 py-2 text-sm font-medium tracking-wide text-ink uppercase hover:bg-ink/10"
+        >
+          Settings
         </Link>
         <Link
           href="/setup"

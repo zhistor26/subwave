@@ -363,6 +363,7 @@ export default function PlayerApp({ contained = false }: PlayerAppProps) {
         onToggleMute={toggleMute}
         onShowShortcuts={() => setShortcutsOpen(true)}
         showOperatorNav={operator.isOperator}
+        needsSetup={operator.needsSetup}
       />
 
       <ShortcutsDialog

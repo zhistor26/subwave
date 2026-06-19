@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ComponentType, ReactNode } from 'react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { useDynamicStyle } from '../../hooks/useDynamicStyle';
+import { setupHref } from '../../lib/operatorNav';
 import {
   Radio,
   BarChart3,
@@ -253,6 +254,19 @@ interface ShellHeaderProps {
 function ShellHeader({ pathname, signedIn, onSignOut }: ShellHeaderProps) {
   const current = NAV.find(n => pathname?.startsWith(n.href))?.label || 'Admin';
   const { nowPlaying, listeners } = useStationFeed();
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
+  const setupTarget = setupHref(needsSetup);
+
+  useEffect(() => {
+    const API = (process.env.NEXT_PUBLIC_API_URL as string | undefined) || '/api';
+    fetch(`${API}/onboarding/status`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: { needsSetup?: boolean } | null) => {
+        if (j) setNeedsSetup(!!j.needsSetup);
+      })
+      .catch(() => {});
+  }, []);
+
   const onAir = !!nowPlaying?.title;
   const listenersObj =
     listeners && typeof listeners === 'object'
@@ -300,7 +314,7 @@ function ShellHeader({ pathname, signedIn, onSignOut }: ShellHeaderProps) {
             </>
           )}
           <ThemeSwitcher variant="admin" />
-          <Link href="/onboarding" className="caption text-muted no-underline hover:text-ink">
+          <Link href={setupTarget} className="caption text-muted no-underline hover:text-ink">
             setup
           </Link>
           <Link href="/listen" className="caption text-muted no-underline hover:text-ink">
@@ -316,7 +330,7 @@ function ShellHeader({ pathname, signedIn, onSignOut }: ShellHeaderProps) {
       {!signedIn && (
         <span className="right">
           <ThemeSwitcher variant="admin" />
-          <Link href="/onboarding" className="caption text-muted no-underline hover:text-ink">
+          <Link href={setupTarget} className="caption text-muted no-underline hover:text-ink">
             setup
           </Link>
           <Link href="/listen" className="caption text-muted no-underline hover:text-ink">

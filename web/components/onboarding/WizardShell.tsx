@@ -1,9 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import Link from 'next/link';
 import SignInForm from '@/components/admin/SignInForm';
+import { ADMIN_CONSOLE_HREF } from '@/lib/operatorNav';
 import { useWizard, STEP_ORDER, STEP_LABELS } from './useWizard';
 import { DjStep, JinglesStep, LlmStep, NavidromeStep, ReviewStep, TtsStep } from './steps';
 
@@ -42,7 +43,7 @@ export default function WizardShell() {
         <div className="mt-6 flex gap-3">
           <button
             type="button"
-            onClick={() => router.push('/admin')}
+            onClick={() => router.push(ADMIN_CONSOLE_HREF)}
             className="rounded border border-ink bg-ink px-4 py-2 text-sm font-medium tracking-wide text-bg uppercase hover:opacity-90"
           >
             Go to admin
@@ -79,7 +80,7 @@ export default function WizardShell() {
           <Link href="/" className="bs-link text-ink/60">
             ← Player
           </Link>
-          <Link href="/admin" className="bs-link text-ink/60">
+          <Link href={ADMIN_CONSOLE_HREF} className="bs-link text-ink/60">
             Admin
           </Link>
         </nav>

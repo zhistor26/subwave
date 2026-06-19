@@ -27,10 +27,22 @@ export function useOperatorAccess(): OperatorAccess {
     (async () => {
       // On LazyCat, show operator nav without probing protected APIs — bare
       // fetch('/api/settings') can trigger the browser's HTTP Basic dialog.
+      // /onboarding/status is public in the LPK, so it is safe to use for
+      // deciding whether "Setup" should open the wizard or the live settings.
       if (isLazyCatHost()) {
         if (!cancelled) {
           setIsOperator(true);
-          setReady(true);
+        }
+        try {
+          const st = await fetch(`${API_URL}/onboarding/status`, { credentials: 'include' });
+          if (!cancelled && st.ok) {
+            const j = (await st.json()) as { needsSetup?: boolean };
+            setNeedsSetup(!!j.needsSetup);
+          }
+        } catch {
+          /* best-effort */
+        } finally {
+          if (!cancelled) setReady(true);
         }
         return;
       }
