@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import SignInForm from '@/components/admin/SignInForm';
+import { isLazyCatHost } from '@/lib/adminAuth';
 import { ADMIN_CONSOLE_HREF } from '@/lib/operatorNav';
 import { useWizard, STEP_ORDER, STEP_LABELS } from './useWizard';
 import { DjStep, JinglesStep, LlmStep, NavidromeStep, ReviewStep, TtsStep } from './steps';
@@ -20,7 +21,9 @@ export default function WizardShell() {
   if (!w.auth.hydrated) {
     return <div className="p-8 text-sm text-ink/60">Loading…</div>;
   }
-  if (!w.auth.auth) {
+  // LazyCat operators already passed the ingress gate — skip the in-app Basic
+  // form (inject + adminAuth handle API auth). Non-LazyCat installs still sign in.
+  if (!w.auth.auth && !isLazyCatHost()) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
         <h1 className="text-2xl font-semibold text-ink">Finish setting up SUB/WAVE</h1>

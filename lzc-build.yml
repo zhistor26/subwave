@@ -2,3 +2,11 @@ manifest: ./lzc-manifest.yml
 pkgout: ./
 icon: ./icon.png
 contentdir: ./content
+# 镜像已通过 copy-image 推至 registry.lazycat.cloud；manifest 直接引用即可。
+# 勿在此 images 段内嵌，否则 LPK 会膨胀至 ~1GB。
+# 需要 embed 时再取消注释，并改 manifest 为 embed:<alias>。
+# images:
+#   subwave-caddy:
+#     dockerfile: docker/lzc-embed/caddy.Dockerfile
+#     context: .
+#     upstream-match: registry.lazycat.cloud

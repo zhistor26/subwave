@@ -45,3 +45,7 @@ docs/screenshots/
 
 # Local host-specific compose overrides (CPU caps, etc.)
 docker-compose.override.yml
+
+# Lazycat LPK build artifacts (built locally; store upload uses desktop copy)
+*.lpk
+.lzc-cli-cache/

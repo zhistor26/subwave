@@ -6,7 +6,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 const STORAGE_KEY = 'subwave_admin_auth';
 const LAZYCAT_SESSION_AUTH = '__lazycat_session__';
 
-function isLazyCatHost(): boolean {
+export function isLazyCatHost(): boolean {
   return typeof window !== 'undefined' && /\.heiyu\.space$/i.test(window.location.hostname);
 }
 

@@ -49,6 +49,7 @@ application:
         - /admin*
         - /onboarding*
       do:
+        - src: file:///lzcapp/pkg/content/lazycat-admin-bootstrap.js
         - src: |
             // LazyCat operators already passed the ingress login gate — hide the
             // redundant in-app Basic Auth form. Do NOT fetch /api/settings here;
@@ -68,14 +69,14 @@ application:
 
 services:
   caddy:
-    image: ghcr.io/perminder-klair/subwave-caddy:latest
+    image: registry.lazycat.cloud/u64111927/perminder-klair/subwave-caddy:8f6fad6b3a6cd774
     depends_on:
       - web
       - controller
       - broadcast
 
   broadcast:
-    image: ghcr.io/perminder-klair/subwave-broadcast:latest
+    image: registry.lazycat.cloud/u64111927/perminder-klair/subwave-broadcast:674a21efd33b8b74
     environment:
       - TZ=Asia/Shanghai
     binds:
@@ -89,7 +90,7 @@ services:
       start_period: 30s
 
   controller:
-    image: ghcr.io/perminder-klair/subwave-controller:latest
+    image: registry.lazycat.cloud/u64111927/perminder-klair/subwave-controller:c55e4e4c7da219c9
     depends_on:
       - broadcast
     environment:
@@ -104,7 +105,7 @@ services:
       - /lzcapp/var/subwave:/var/sub-wave
 
   web:
-    image: ghcr.io/perminder-klair/subwave-web:latest
+    image: registry.lazycat.cloud/u64111927/perminder-klair/subwave-web:90e7b42c701da77c
     depends_on:
       - controller
     environment:
