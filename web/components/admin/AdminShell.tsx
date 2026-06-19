@@ -91,10 +91,11 @@ export default function AdminShell({ children }: AdminShellProps) {
   const handleSignIn = useCallback(
     async (user: string, pass: string): Promise<SignInResult> => {
       const res = await signIn(user, pass);
-      if (res?.ok && pathname !== '/admin/dash') router.push('/admin/dash');
+      // Keep the URL the operator opened — e.g. /admin/settings?section=backup.
+      // Forcing /admin/dash after sign-in dropped Settings deep-links on LazyCat.
       return res;
     },
-    [signIn, pathname, router],
+    [signIn],
   );
 
   // Probe an admin endpoint on first paint so a revoked token surfaces the
